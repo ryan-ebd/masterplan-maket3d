@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: maket3d-db
+    restart: unless-stopped
+    ports:
+      - "5433:5432" # host 5433 -> container 5432 (5432 host dibiarkan kosong)
+    environment:
+      POSTGRES_USER: maket
+      POSTGRES_PASSWORD: maket_dev_pw
+      POSTGRES_DB: maket3d
+    volumes:
+      - maket3d_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maket -d maket3d"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  maket3d_pgdata:

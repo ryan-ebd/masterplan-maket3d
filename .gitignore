@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# --- Rancang Maket3D ---
+.env
+storage/
+docs/qa/*.png
+
+# design system persisted (skill ui-ux-pro-max)
+!design-system/

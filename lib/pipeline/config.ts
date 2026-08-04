@@ -1,0 +1,41 @@
+import type { Hierarki } from "./types";
+
+export const ROAD_WIDTHS: Record<Hierarki, number> = { arteri: 16, kolektor: 10, lokal: 6 };
+
+const ARTERI = /^(motorway|trunk|primary)(_link)?$/;
+const KOLEKTOR = /^(secondary|tertiary)(_link)?$/;
+
+export function klasifikasiJalan(highway: string): Hierarki {
+  if (ARTERI.test(highway)) return "arteri";
+  if (KOLEKTOR.test(highway)) return "kolektor";
+  return "lokal";
+}
+
+export const Z_OFFSET = { air: 0.1, jalan: 0.3 };
+
+export const DEFAULT_HEIGHT_ZONA: Record<string, number> = {
+  perumahan: 7,
+  komersial: 12,
+  industri: 10,
+  fasum: 8,
+  default: 7,
+};
+
+export const OVERPASS_ENDPOINTS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+];
+
+export const USER_AGENT = "masterplan-maket3d/0.1 (prototype; kontak: ryan@ebede.id)";
+
+export const ELEVATION_GRID_MAX = 40; // grid maks per sisi (~41x41 titik)
+
+export const LAYER_LABELS: Record<string, string> = {
+  bangunan: "Bangunan",
+  "jalan-arteri": "Jalan Arteri",
+  "jalan-kolektor": "Jalan Kolektor",
+  "jalan-lokal": "Jalan Lokal",
+  air: "Air",
+  terrain: "Terrain",
+  papan: "Papan Maket",
+};

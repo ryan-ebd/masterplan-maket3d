@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  KLIEN
+  PERENCANA
+  ADMIN
+}
+
+enum ProjectStatus {
+  BARU
+  DIPROSES
+  GENERATING
+  REVIEW_PERENCANA
+  SELESAI
+  GAGAL
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  ERROR
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         Role
+  projects     Project[] @relation("KlienProjects")
+  assigned     Project[] @relation("PerencanaProjects")
+  createdAt    DateTime  @default(now())
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  status      ProjectStatus @default(BARU)
+
+  // Titik lokasi dari Klien (picker Google Maps)
+  locationLat Float
+  locationLng Float
+  address     String? // hasil reverse-geocoding (boleh null jika gagal)
+
+  // Poligon wilayah hasil kerja Perencana (+LLM)
+  boundary     Json? // GeoJSON Polygon, ring tertutup, [lng,lat]
+  boundaryNote String? // alasan/anotasi dari LLM atau perencana
+  areaM2       Float? // luas terhitung, untuk validasi batas maks
+  zonesMeta    Json? // suggested_zones dari LLM: [{name, type}]
+
+  klien       User    @relation("KlienProjects", fields: [klienId], references: [id])
+  klienId     String
+  perencana   User?   @relation("PerencanaProjects", fields: [perencanaId], references: [id])
+  perencanaId String?
+
+  jobs        ProcessingJob[]
+  model       Model3D?
+  llmSessions LlmSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([klienId])
+  @@index([perencanaId])
+  @@index([status])
+}
+
+model ProcessingJob {
+  id        String    @id @default(cuid())
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  status    JobStatus @default(QUEUED)
+  step      String? // "fetch-osm" | "fetch-heights" | "fetch-elevation" | "build-geometry" | "export-glb"
+  progress  Int       @default(0) // 0..100
+  error     String?
+  createdAt DateTime  @default(now())
+  startedAt DateTime?
+  endedAt   DateTime?
+
+  // Kunci idempotensi: diisi projectId selama job aktif (QUEUED/RUNNING), di-null-kan saat selesai.
+  // Unique membuat "satu job aktif per proyek" dijamin DATABASE, bukan cek-lalu-buat yang bisa balapan.
+  activeKey String?   @unique
+
+  @@index([projectId, createdAt])
+  @@index([status])
+}
+
+model Model3D {
+  id         String   @id @default(cuid())
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId  String   @unique
+  glbPath    String // relatif STORAGE_DIR: {projectId}/{uuid}.glb
+  stats      Json // {buildings, roads, waterBodies, areaM2, features?, warnings?}
+  layersMeta Json // [{id, label, nodeName, defaultVisible}]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt // cache-buster viewer (id tidak berubah saat upsert)
+}
+
+model LlmSession {
+  id        String   @id @default(cuid())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String   @unique // satu sesi per proyek -> upsert atomik, tanpa baris duplikat
+  messages  Json // riwayat blok content utuh perencana <-> Claude (termasuk tool_use/tool_result)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

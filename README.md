@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Rancang — Generator Maket 3D
 
-## Getting Started
+Platform web maket 3D berbasis lokasi peta (terinspirasi CadMapper) dengan alur dua peran:
+**Klien** menandai titik lokasi → **Perencana** menyusun poligon batas (manual dan/atau dibantu
+**Claude API**) → pipeline membangun **maket 3D GLB** (bangunan, jalan 3 hierarki, air, terrain)
+dari data **OSM Overpass** + **Google Elevation**, dipreview dengan React Three Fiber.
 
-First, run the development server:
+## Prasyarat
+
+- Node.js ≥ 24, npm
+- [OrbStack](https://orbstack.dev) (runtime Docker) — `brew install --cask orbstack`
+- API key: Google Maps (client + server) dan Anthropic — lihat `.env.example`
+
+## Mulai cepat
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+open -a OrbStack                # pastikan Running
+docker compose up -d            # PostgreSQL 16 @ localhost:5433 (5432 dibiarkan kosong)
+cp .env.example .env            # isi AUTH_SECRET + semua API key
+npm install
+npx prisma migrate dev
+npx prisma db seed              # akun demo klien@demo.id / perencana@demo.id (password123)
+npm run smoke                   # cek 4 API eksternal — pastikan hijau semua
+npm run dev                     # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Skrip penting
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Perintah | Fungsi |
+|---|---|
+| `npm run smoke` | Uji kredensial Overpass / Elevation / Geocoding / Anthropic / Maps |
+| `npm run fixture` | Tulis GLB fixture statis (uji kontrak viewer tanpa API eksternal) |
+| `npm run pipeline <projectId>` | Jalankan pipeline 3D dari CLI (tanpa web UI) |
+| `npm run pipeline <projectId> -- --fixture` | Daftarkan fixture sebagai model proyek |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Arsitektur singkat
 
-## Learn More
+- **Auth**: Auth.js v5 credentials, JWT session ber-`role` (KLIEN/PERENCANA); `auth.config.ts`
+  edge-safe untuk middleware, `auth.ts` penuh untuk Node.
+- **Job async tanpa Redis**: `lib/jobs/runner.ts` (fire-and-forget + `globalThis`), status di tabel
+  `ProcessingJob`, dipoll SWR; `instrumentation.ts` menandai job zombie saat server restart.
+- **Pipeline 3D** (`lib/pipeline/`): fetch-osm → merge-heights → fetch-elevation (degradasi flat)
+  → project-clip (turf v7) → build-geometry (earcut, winding-normalized) → export-glb
+  (@gltf-transform, node `layer:*`, sumbu glTF Y-up `(x,y,z)→(x,z,-y)`).
+- **LLM** (`lib/llm/`): tool `propose_boundary` (strict), `tool_choice` paksa, loop validasi
+  `tool_result is_error` maks 3×, konteks jalan/sungai dari Overpass `around:1000`, riwayat utuh
+  di `LlmSession`.
+- **Viewer**: R3F + drei `useGLTF` (dibungkus `Suspense`), toggle layer via nama node `layer:*`,
+  klik bangunan → info tinggi via vertex attribute `_FEATUREID`.
+- **Editor poligon**: `google.maps.Polygon editable:true` + mode gambar klik-per-vertex
+  (Drawing Library Google sudah deprecated, dihapus Mei 2026).
 
-To learn more about Next.js, take a look at the following resources:
+Atribusi wajib: “© OpenStreetMap contributors” (ODbL) di viewer, atribusi Google di peta.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Design system
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Tema UI dihasilkan skill `ui-ux-pro-max` dan tersimpan di
+`design-system/rancang-maket-3d/MASTER.md` — Glassmorphism + Enterprise SaaS, primer
+Indigo→Violet, tipografi Poppins/Open Sans. Token semantik ada di `app/globals.css`
+(`--color-primary`, `--color-accent`, `.glass`, `.aurora`, `.btn-primary`); jangan menulis
+hex mentah di komponen. Ikon memakai Lucide (SVG), bukan emoji.
 
-## Deploy on Vercel
+## Batasan prototype
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Luas boundary maks 4 km² (validasi server); usulan LLM 0.05–4 km², 6–30 vertex.
+- Job berjalan di proses Next (bukan serverless) — deploy target `next start` di VPS.
+- Google Open Buildings, ekspor DXF/OBJ, admin = tahap M5 (belum diimplementasi).
