@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Bot, Boxes, MapPin, MousePointerClick, UserRound } from "lucide-react";
 import { auth } from "@/auth";
+import { homeForRole } from "@/lib/authz";
 import { btnCls } from "@/components/ui/Button";
 import { cardCls } from "@/components/ui/Card";
 import { Eyebrow } from "@/components/ui/Eyebrow";
@@ -28,7 +29,7 @@ const LANGKAH = [
 export default async function Beranda() {
   const session = await auth();
   if (session?.user) {
-    redirect(session.user.role === "KLIEN" ? "/klien" : "/perencana");
+    redirect(homeForRole(session.user.role));
   }
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle } from "lucide-react";
+import { Alert } from "@/components/ui/Alert";
 
 export interface Pesan {
   peran: "user" | "asisten" | "error";
@@ -9,15 +9,7 @@ export interface Pesan {
 
 export default function GelembungPesan({ pesan }: { pesan: Pesan }) {
   if (pesan.peran === "error") {
-    return (
-      <div
-        role="alert"
-        className="flex items-start gap-2 rounded-md bg-rose-50 px-3.5 py-2.5 text-sm text-danger"
-      >
-        <AlertCircle size={15} className="mt-0.5 shrink-0" aria-hidden />
-        {pesan.teks}
-      </div>
-    );
+    return <Alert>{pesan.teks}</Alert>;
   }
   const user = pesan.peran === "user";
   return (

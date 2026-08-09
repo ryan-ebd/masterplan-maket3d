@@ -1,26 +1,30 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
+import { HttpError } from "@/lib/authz";
+import * as projects from "@/lib/projects";
+
+// Form action tanpa penanganan error di UI: tolakan authz/status (mis. proyek
+// keburu diklaim perencana lain) cukup di-refresh, jangan meledakkan halaman.
+function abaikanTolakan(e: unknown) {
+  if (!(e instanceof HttpError)) throw e;
+}
 
 export async function claimProject(projectId: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role === "KLIEN") return;
-  await prisma.project.updateMany({
-    where: { id: projectId, status: "BARU" },
-    data: { perencanaId: session.user.id, status: "DIPROSES" },
-  });
+  try {
+    await projects.claimProject(projectId);
+  } catch (e) {
+    abaikanTolakan(e);
+  }
   revalidatePath("/perencana");
 }
 
 export async function publishProject(projectId: string) {
-  const session = await auth();
-  if (!session?.user || session.user.role === "KLIEN") return;
-  await prisma.project.updateMany({
-    where: { id: projectId, status: "REVIEW_PERENCANA" },
-    data: { status: "SELESAI" },
-  });
+  try {
+    await projects.publishProject(projectId);
+  } catch (e) {
+    abaikanTolakan(e);
+  }
   revalidatePath(`/perencana/proyek/${projectId}`);
   revalidatePath("/perencana");
 }

@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ZodError } from "zod";
-import type { Role } from "@prisma/client";
+import type { ProjectStatus, Role } from "@prisma/client";
 
 export class HttpError extends Error {
   constructor(
@@ -32,13 +32,29 @@ export async function requireRole(role: Role): Promise<SessionUser> {
   return user;
 }
 
+/** Beranda per peran — satu-satunya pemetaan peran -> route. */
+export function homeForRole(role: Role): string {
+  return role === "KLIEN" ? "/klien" : "/perencana";
+}
+
+/** Status yang masih boleh diubah perencana (boundary/generate/LLM). */
+export const EDITABLE_STATUSES: ReadonlySet<ProjectStatus> = new Set<ProjectStatus>([
+  "DIPROSES",
+  "REVIEW_PERENCANA",
+  "GAGAL",
+]);
+
 /**
  * Akses BACA: KLIEN hanya proyek miliknya; PERENCANA proyek yang ia tangani
  * atau yang masih BARU (agar bisa dilihat sebelum diklaim); ADMIN semua.
  */
 export async function assertProjectAccess(projectId: string, user?: SessionUser) {
   const u = user ?? (await requireUser());
-  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  // select sempit: guard ini ada di jalur polling — jangan tarik boundary/zonesMeta JSON
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true, klienId: true, perencanaId: true, status: true },
+  });
   if (!project) throw new HttpError(404, "Proyek tidak ditemukan");
 
   if (u.role === "KLIEN" && project.klienId !== u.id) {
@@ -63,6 +79,18 @@ export async function assertProjectAssigned(projectId: string, user?: SessionUse
     throw new HttpError(403, "Klaim proyek ini dulu sebelum mengubahnya");
   }
   return { user: u, project };
+}
+
+/**
+ * Guard lengkap route TULIS perencana: assigned + status masih editable.
+ * `aksi` dipakai di pesan 409, mis. "Ubah batas" / "Generate".
+ */
+export async function assertProjectEditable(projectId: string, aksi: string) {
+  const { user, project } = await assertProjectAssigned(projectId);
+  if (!EDITABLE_STATUSES.has(project.status)) {
+    throw new HttpError(409, `${aksi} tidak bisa dilakukan saat status ${project.status}`);
+  }
+  return { user, project };
 }
 
 export function jsonOk<T>(data: T, init?: ResponseInit): Response {

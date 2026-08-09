@@ -1,12 +1,25 @@
 import Link from "next/link";
-import { ArrowUpRight, ClipboardCheck, Inbox, MapPin, UserRound } from "lucide-react";
+import { ArrowUpRight, ClipboardCheck, Inbox, UserRound } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import BadgeStatus from "@/components/ui/BadgeStatus";
 import { Button } from "@/components/ui/Button";
 import { cardCls } from "@/components/ui/Card";
-import { Eyebrow, formatKoordinat } from "@/components/ui/Eyebrow";
+import { Eyebrow } from "@/components/ui/Eyebrow";
+import { LokasiProyek } from "@/components/ui/LokasiProyek";
 import { claimProject } from "./actions";
+
+// Hanya kolom yang dirender kartu — boundary/zonesMeta JSON tidak ikut terangkut
+const KARTU_SELECT = {
+  id: true,
+  name: true,
+  status: true,
+  address: true,
+  locationLat: true,
+  locationLng: true,
+  createdAt: true,
+  klien: { select: { name: true } },
+} as const;
 
 export default async function DashboardPerencana() {
   const session = await auth();
@@ -14,12 +27,12 @@ export default async function DashboardPerencana() {
     prisma.project.findMany({
       where: { status: "BARU" },
       orderBy: { createdAt: "asc" },
-      include: { klien: { select: { name: true } } },
+      select: KARTU_SELECT,
     }),
     prisma.project.findMany({
       where: { perencanaId: session!.user.id },
       orderBy: { updatedAt: "desc" },
-      include: { klien: { select: { name: true } } },
+      select: KARTU_SELECT,
     }),
   ]);
 
@@ -51,14 +64,7 @@ export default async function DashboardPerencana() {
                   <BadgeStatus status={p.status} />
                 </div>
                 <p className="mt-2 flex items-center gap-1.5 text-sm text-muted">
-                  <MapPin size={14} className="shrink-0 text-primary" aria-hidden />
-                  <span className="line-clamp-1">
-                    {p.address ?? (
-                      <span className="font-mono text-xs">
-                        {formatKoordinat(p.locationLat, p.locationLng)}
-                      </span>
-                    )}
-                  </span>
+                  <LokasiProyek address={p.address} lat={p.locationLat} lng={p.locationLng} clamp />
                 </p>
                 <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted">
                   <UserRound size={13} aria-hidden />
@@ -96,14 +102,7 @@ export default async function DashboardPerencana() {
                   <BadgeStatus status={p.status} />
                 </div>
                 <p className="mt-2 flex items-center gap-1.5 text-sm text-muted">
-                  <MapPin size={14} className="shrink-0 text-primary" aria-hidden />
-                  <span className="line-clamp-1">
-                    {p.address ?? (
-                      <span className="font-mono text-xs">
-                        {formatKoordinat(p.locationLat, p.locationLng)}
-                      </span>
-                    )}
-                  </span>
+                  <LokasiProyek address={p.address} lat={p.locationLat} lng={p.locationLng} clamp />
                 </p>
                 <div className="mt-4 flex items-center justify-between border-t border-line pt-3 text-xs text-muted">
                   <span className="flex items-center gap-1.5">

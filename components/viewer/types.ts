@@ -1,9 +1,8 @@
-export interface LayerMeta {
-  id: string;
-  label: string;
-  nodeName: string;
-  defaultVisible: boolean;
-}
+// LayerMeta didefinisikan pipeline (produser) — type-only import, aman utk bundle client.
+export type { LayerMeta } from "@/lib/pipeline/types";
+
+/** Mode alas peta di viewer: papan polos, citra satelit, atau roadmap. */
+export type ModeBasemap = "off" | "satelit" | "peta";
 
 export interface InfoBangunan {
   heightM: number;

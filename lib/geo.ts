@@ -28,13 +28,17 @@ export function closeRing(ring: LngLat[]): LngLat[] {
   return [...ring, ring[0]];
 }
 
-/** Ring GeoJSON tertutup -> path Google Maps (buang titik penutup duplikat). */
-export function ringToPath(ring: LngLat[]): LatLng[] {
-  if (ring.length < 2) return ring.map(lngLatToLatLng);
+/** Kebalikan closeRing: buang titik penutup duplikat bila ada. */
+export function openRing(ring: LngLat[]): LngLat[] {
+  if (ring.length < 2) return ring;
   const [fx, fy] = ring[0];
   const [lx, ly] = ring[ring.length - 1];
-  const open = fx === lx && fy === ly ? ring.slice(0, -1) : ring;
-  return open.map(lngLatToLatLng);
+  return fx === lx && fy === ly ? ring.slice(0, -1) : ring;
+}
+
+/** Ring GeoJSON tertutup -> path Google Maps (buang titik penutup duplikat). */
+export function ringToPath(ring: LngLat[]): LatLng[] {
+  return openRing(ring).map(lngLatToLatLng);
 }
 
 export function ringToPolygon(ring: LngLat[]): Polygon {
@@ -46,7 +50,20 @@ export function polygonAreaM2(polygon: Polygon): number {
 }
 
 export const MAX_AREA_M2 = 4_000_000; // 4 km² (batas dokumen desain)
-export const MIN_AREA_M2_LLM = 50_000; // 0.05 km² utk usulan LLM
+
+/**
+ * Profil batasan boundary per jalur — SATU sumber untuk validator server,
+ * deskripsi tool LLM, dan system prompt (jangan hardcode angka di tempat lain).
+ */
+export const BOUNDARY_LIMITS = {
+  manual: { minVertices: 4, maxVertices: 100, minAreaM2: 1000, maxDistanceKm: 5 },
+  llm: { minVertices: 6, maxVertices: 30, minAreaM2: 50_000, maxDistanceKm: 3 },
+} as const;
+
+/** Format luas m² -> "1.234 km²" (3 desimal — gaya seragam UI & prompt). */
+export function formatLuasKm2(m2: number): string {
+  return `${(m2 / 1e6).toFixed(3)} km²`;
+}
 
 export interface BoundaryValidation {
   ok: boolean;
@@ -99,7 +116,7 @@ export function validateBoundaryRing(
     return { ok: false, error: `luas ${(areaM2 / 1e6).toFixed(2)} km² melebihi batas 4 km²` };
   }
   if (areaM2 < minAreaM2) {
-    return { ok: false, error: `luas ${(areaM2 / 1e6).toFixed(3)} km² di bawah minimum ${(minAreaM2 / 1e6).toFixed(2)} km²` };
+    return { ok: false, error: `luas ${formatLuasKm2(areaM2)} di bawah minimum ${(minAreaM2 / 1e6).toFixed(2)} km²` };
   }
 
   if (center && maxDistanceKm) {

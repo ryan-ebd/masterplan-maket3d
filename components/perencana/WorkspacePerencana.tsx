@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Polygon } from "geojson";
@@ -13,7 +13,6 @@ import {
   Hammer,
   Info,
   Loader2,
-  MapPin,
   Megaphone,
   RefreshCw,
   Ruler,
@@ -21,25 +20,20 @@ import {
   UserRound,
 } from "lucide-react";
 import { fetcher } from "@/lib/fetcher";
-import type { LngLat } from "@/lib/geo";
+import { formatLuasKm2, type LngLat } from "@/lib/geo";
+import { STEP_LABELS } from "@/lib/pipeline/config";
 import { useStatusJob, type JobInfo } from "@/hooks/useStatusJob";
+import { Alert } from "@/components/ui/Alert";
 import BadgeStatus from "@/components/ui/BadgeStatus";
 import { Button } from "@/components/ui/Button";
-import { formatKoordinat } from "@/components/ui/Eyebrow";
+import { Card } from "@/components/ui/Card";
+import { LokasiProyek } from "@/components/ui/LokasiProyek";
 import PenyediaPeta from "@/components/peta/PenyediaPeta";
-import EditorPoligon from "@/components/peta/EditorPoligon";
+import EditorPoligon, { type DraftRing } from "@/components/peta/EditorPoligon";
 import PanelLlm from "@/components/llm/PanelLlm";
 import Viewer3D from "@/components/viewer/Viewer3D";
 import { publishProject } from "@/app/perencana/actions";
 import type { LayerMeta } from "@/components/viewer/types";
-
-const LABEL_STEP: Record<string, string> = {
-  "fetch-osm": "Mengambil data OSM…",
-  "fetch-heights": "Menggabungkan tinggi bangunan…",
-  "fetch-elevation": "Mengambil elevasi terrain…",
-  "build-geometry": "Membangun geometri 3D…",
-  "export-glb": "Menulis berkas GLB…",
-};
 
 interface ProyekView {
   id: string;
@@ -72,27 +66,19 @@ export default function WorkspacePerencana({
   lastJob: JobInfo | null;
 }) {
   const router = useRouter();
-  const [ring, setRing] = useState<LngLat[] | null>(
-    (project.boundary?.coordinates[0] as LngLat[] | undefined) ?? null,
-  );
-  // nonce: draft LLM yang KOORDINATNYA sama dengan ring saat ini tetap harus dimuat ulang
-  const [draftNonce, setDraftNonce] = useState(0);
+  // objek baru per usulan LLM — identitasnya yang memicu editor memuat ulang,
+  // termasuk saat koordinatnya identik dengan boundary saat ini
+  const [draft, setDraft] = useState<DraftRing | null>(null);
   const [savingBoundary, setSavingBoundary] = useState(false);
   const [mengirimGenerate, setMengirimGenerate] = useState(false);
   const [pesan, setPesan] = useState<string | null>(null);
   const [errorAksi, setErrorAksi] = useState<string | null>(null);
 
-  const { job, mutate } = useStatusJob(project.id, true);
-  const jobKini = job ?? lastJob;
+  const { job: jobKini, mutate } = useStatusJob(project.id, {
+    fallbackData: lastJob,
+    onSelesai: () => router.refresh(),
+  });
   const sedangJalan = jobKini?.status === "QUEUED" || jobKini?.status === "RUNNING";
-
-  const prevStatus = useRef<string | undefined>(jobKini?.status);
-  useEffect(() => {
-    if (prevStatus.current !== jobKini?.status) {
-      if (jobKini?.status === "DONE" || jobKini?.status === "ERROR") router.refresh();
-      prevStatus.current = jobKini?.status;
-    }
-  }, [jobKini?.status, router]);
 
   async function simpanBoundary(r: LngLat[], note?: string) {
     setSavingBoundary(true);
@@ -102,7 +88,6 @@ export default function WorkspacePerencana({
         method: "PUT",
         body: JSON.stringify({ polygon: { type: "Polygon", coordinates: [r] }, note }),
       });
-      setRing(r);
       setPesan("Batas wilayah tersimpan.");
       router.refresh();
     } catch (e) {
@@ -147,18 +132,17 @@ export default function WorkspacePerencana({
           {project.areaM2 != null && (
             <span className="inline-flex items-center gap-1.5 rounded border border-line px-2.5 py-1 font-mono text-xs text-primary">
               <Ruler size={12} aria-hidden />
-              {(project.areaM2 / 1e6).toFixed(3)} km²
+              {formatLuasKm2(project.areaM2)}
             </span>
           )}
         </div>
         <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
           <span className="flex items-center gap-1.5">
-            <MapPin size={14} className="shrink-0 text-primary" aria-hidden />
-            {project.address ?? (
-              <span className="font-mono text-xs">
-                {formatKoordinat(project.locationLat, project.locationLng)}
-              </span>
-            )}
+            <LokasiProyek
+              address={project.address}
+              lat={project.locationLat}
+              lng={project.locationLng}
+            />
           </span>
           <span className="flex items-center gap-1.5 text-muted">
             <UserRound size={13} aria-hidden />
@@ -172,25 +156,12 @@ export default function WorkspacePerencana({
         )}
       </div>
 
-      {pesan && (
-        <p className="flex items-center gap-2 rounded-md bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">
-          <CheckCircle2 size={16} className="shrink-0" aria-hidden />
-          {pesan}
-        </p>
-      )}
-      {errorAksi && (
-        <p
-          role="alert"
-          className="flex items-start gap-2 rounded-md bg-rose-50 px-4 py-2.5 text-sm text-danger"
-        >
-          <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden />
-          {errorAksi}
-        </p>
-      )}
+      {pesan && <Alert varian="sukses">{pesan}</Alert>}
+      {errorAksi && <Alert>{errorAksi}</Alert>}
 
       {/* Editor + LLM */}
       <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-        <div className="rounded-lg border border-line bg-surface p-5 shadow-sm">
+        <Card>
           <h2 className="mb-4 flex items-center gap-2 font-display font-semibold">
             <Shapes size={18} className="text-primary" aria-hidden />
             Batas Wilayah Maket
@@ -198,8 +169,8 @@ export default function WorkspacePerencana({
           <PenyediaPeta>
             <EditorPoligon
               center={{ lat: project.locationLat, lng: project.locationLng }}
-              initialRing={ring}
-              draftNonce={draftNonce}
+              initialRing={(project.boundary?.coordinates[0] as LngLat[] | undefined) ?? null}
+              draft={draft}
               onSave={simpanBoundary}
               saving={savingBoundary}
             />
@@ -213,13 +184,12 @@ export default function WorkspacePerencana({
               </span>
             </p>
           )}
-        </div>
+        </Card>
 
         <PanelLlm
           projectId={project.id}
           onBoundaryDraft={(r) => {
-            setRing([...r] as LngLat[]);
-            setDraftNonce((n) => n + 1);
+            setDraft({ ring: [...r] as LngLat[] });
             setPesan(
               "Usulan poligon AI dimuat ke editor — geser vertex bila perlu, lalu Simpan Batas.",
             );
@@ -228,7 +198,7 @@ export default function WorkspacePerencana({
       </div>
 
       {/* Generate + progress */}
-      <div className="rounded-lg border border-line bg-surface p-5 shadow-sm">
+      <Card>
         <div className="flex flex-wrap items-center gap-4">
           <Button
             onClick={generate}
@@ -275,23 +245,17 @@ export default function WorkspacePerencana({
             </div>
             <p className="mt-2.5 text-sm text-muted">
               <span className="font-mono font-semibold text-primary">{jobKini.progress}%</span> —{" "}
-              {LABEL_STEP[jobKini.step ?? ""] ?? "Menyiapkan…"}
+              {STEP_LABELS[jobKini.step ?? ""] ?? "Menyiapkan…"}
             </p>
           </div>
         )}
         {jobKini?.status === "ERROR" && (
-          <p
-            role="alert"
-            className="mt-4 flex items-start gap-2 rounded-md bg-rose-50 p-3.5 text-sm text-danger"
-          >
-            <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden />
-            <span>
-              <span className="font-semibold">Gagal: </span>
-              {jobKini.error ?? "kesalahan tidak diketahui"}
-            </span>
-          </p>
+          <Alert className="mt-4">
+            <span className="font-semibold">Gagal: </span>
+            {jobKini.error ?? "kesalahan tidak diketahui"}
+          </Alert>
         )}
-      </div>
+      </Card>
 
       {/* Viewer + publish */}
       {model && (
@@ -321,6 +285,7 @@ export default function WorkspacePerencana({
             version={model.version}
             layersMeta={model.layersMeta}
             stats={model.stats}
+            boundary={project.boundary}
           />
         </div>
       )}

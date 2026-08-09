@@ -3,17 +3,17 @@ import path from "node:path";
 import type { Prisma } from "@prisma/client";
 import type { Polygon } from "geojson";
 import { prisma } from "@/lib/prisma";
+import { STORAGE_ROOT } from "@/lib/storage";
 import { runPipeline } from "@/lib/pipeline";
 
-export type JobInfo = {
-  id: string;
-  status: "QUEUED" | "RUNNING" | "DONE" | "ERROR";
-  step: string | null;
-  progress: number;
-  error: string | null;
-};
-
-const STORAGE_ROOT = path.resolve(process.env.STORAGE_DIR ?? "./storage/models");
+/** Kolom job yang dikirim ke UI status — samakan dengan JobInfo di hooks/useStatusJob. */
+export const JOB_SELECT = {
+  id: true,
+  status: true,
+  step: true,
+  progress: true,
+  error: true,
+} as const;
 
 // State runner di globalThis: HMR-safe (pola sama dgn prisma singleton).
 const g = globalThis as unknown as { __jobRunnerActive?: Set<string> };

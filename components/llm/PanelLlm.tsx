@@ -5,7 +5,8 @@ import type { Polygon } from "geojson";
 import { Bot, Loader2, Send, Wand2 } from "lucide-react";
 import { fetcher } from "@/lib/fetcher";
 import { Button } from "@/components/ui/Button";
-import type { LngLat } from "@/lib/geo";
+import { Card } from "@/components/ui/Card";
+import { formatLuasKm2, type LngLat } from "@/lib/geo";
 import GelembungPesan, { type Pesan } from "./GelembungPesan";
 
 interface SuggestResp {
@@ -57,7 +58,7 @@ export default function PanelLlm({
           : "";
       push({
         peran: "asisten",
-        teks: `${data.reasoning}${zona}\n\nLuas ≈ ${(data.areaM2 / 1e6).toFixed(3)} km² — poligon dimuat ke editor.`,
+        teks: `${data.reasoning}${zona}\n\nLuas ≈ ${formatLuasKm2(data.areaM2)} — poligon dimuat ke editor.`,
       });
       setInstruksi("");
     } catch (e) {
@@ -95,7 +96,7 @@ export default function PanelLlm({
   }
 
   return (
-    <div className="flex min-h-[560px] flex-col rounded-lg border border-line bg-surface p-5 shadow-sm">
+    <Card className="flex min-h-[560px] flex-col">
       <div className="flex items-center gap-2.5">
         <span className="flex size-9 items-center justify-center rounded-md bg-primary text-white">
           <Bot size={18} aria-hidden />
@@ -165,6 +166,6 @@ export default function PanelLlm({
           <Send size={17} aria-hidden />
         </button>
       </form>
-    </div>
+    </Card>
   );
 }

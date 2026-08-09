@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import { STORAGE_ROOT } from "@/lib/storage";
 import { LAYER_LABELS } from "./config";
-import { makeProjector } from "./lib/projection";
+import { bboxOfMeterRing, makeProjector } from "./lib/projection";
 import { fetchOsm } from "./steps/01-fetch-osm";
 import { mergeHeights } from "./steps/02-merge-heights";
 import { fetchElevation } from "./steps/03-fetch-elevation";
@@ -11,8 +12,6 @@ import { exportGlb } from "./steps/06-export-glb";
 import type { Heightmap, LayerMeta, PipelineInput, PipelineReport, PipelineResult } from "./types";
 
 export type { LayerMeta, PipelineInput, PipelineReport, PipelineResult } from "./types";
-
-const STORAGE_ROOT = path.resolve(process.env.STORAGE_DIR ?? "./storage/models");
 
 export async function runPipeline(
   input: PipelineInput,
@@ -36,15 +35,7 @@ export async function runPipeline(
 
   // bbox meter dari ring boundary (utk grid elevasi & papan)
   const ringMeter = input.boundary.coordinates[0].map((c) => proj.toMeter(c as [number, number]));
-  const bbox = ringMeter.reduce(
-    (b, [x, y]) => ({
-      minX: Math.min(b.minX, x),
-      minY: Math.min(b.minY, y),
-      maxX: Math.max(b.maxX, x),
-      maxY: Math.max(b.maxY, y),
-    }),
-    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
-  );
+  const bbox = bboxOfMeterRing(ringMeter);
 
   // [3] fetch-elevation (25 -> 45) — gagal = degradasi flat, bukan gagal pipeline
   await report(25, "fetch-elevation");

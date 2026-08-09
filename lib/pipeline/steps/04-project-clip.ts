@@ -1,7 +1,7 @@
 import * as turf from "@turf/turf";
 import type { Feature, MultiPolygon, Polygon } from "geojson";
 import { ROAD_WIDTHS } from "../config";
-import type { Projector } from "../lib/projection";
+import { bboxOfMeterRing, type Projector } from "../lib/projection";
 import type { BuildingInfo, Hierarki, MeterRing, OsmData, ProjectedData } from "../types";
 
 /** Pecah Polygon|MultiPolygon jadi daftar coordinates Polygon (dengan hole). */
@@ -37,10 +37,17 @@ export function projectClip(
 
       let feat: Feature<Polygon> = turf.cleanCoords(b) as Feature<Polygon>;
       if (turf.kinks(feat).features.length > 0) {
-        // self-intersecting: pecah dan ambil bagian terluas
+        // self-intersecting: pecah dan ambil bagian terluas (hitung luas tiap bagian sekali)
         const parts = turf.unkinkPolygon(feat).features;
         if (parts.length === 0) throw new Error("unkink kosong");
-        feat = parts.reduce((a, x) => (turf.area(x) > turf.area(a) ? x : a));
+        let bestArea = -Infinity;
+        for (const p of parts) {
+          const a = turf.area(p);
+          if (a > bestArea) {
+            bestArea = a;
+            feat = p;
+          }
+        }
         if (turf.kinks(feat).features.length > 0) throw new Error("masih self-intersecting");
       }
 
@@ -69,12 +76,15 @@ export function projectClip(
       });
       if (!buffered) continue; // geometri mikro/degenerate -> buffer undefined
       for (const coords of explodeCoords(buffered as Feature<Polygon | MultiPolygon>)) {
+        const poly = turf.polygon(coords);
+        // fast-path: ruas sepenuhnya di dalam boundary tidak perlu boolean-intersect mahal
+        if (turf.booleanWithin(poly, boundaryFeat)) {
+          roads[r.hierarki].push(projectRings(coords, proj));
+          continue;
+        }
         // turf v7: intersect menerima SATU FeatureCollection
         const clipped = turf.intersect(
-          turf.featureCollection<Polygon | MultiPolygon>([
-            turf.polygon(coords),
-            boundaryFeat as Feature<Polygon>,
-          ]),
+          turf.featureCollection<Polygon | MultiPolygon>([poly, boundaryFeat as Feature<Polygon>]),
         );
         for (const cc of explodeCoords(clipped)) {
           roads[r.hierarki].push(projectRings(cc, proj));
@@ -118,16 +128,6 @@ export function projectClip(
   const boundaryRing: MeterRing = boundary.coordinates[0].map((c) =>
     proj.toMeter(c as [number, number]),
   );
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity;
-  for (const [x, y] of boundaryRing) {
-    if (x < minX) minX = x;
-    if (y < minY) minY = y;
-    if (x > maxX) maxX = x;
-    if (y > maxY) maxY = y;
-  }
 
-  return { buildings, roads, water, boundaryRing, bbox: { minX, minY, maxX, maxY } };
+  return { buildings, roads, water, boundaryRing, bbox: bboxOfMeterRing(boundaryRing) };
 }

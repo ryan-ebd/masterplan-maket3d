@@ -1,31 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { createProjectSchema } from "@/lib/validation";
-import { handleApiError, jsonOk, requireRole, requireUser } from "@/lib/authz";
-
-export async function GET() {
-  try {
-    const user = await requireUser();
-    // Perencana hanya melihat antrean BARU + proyek yang ia tangani (bukan seluruh basis data)
-    const where =
-      user.role === "KLIEN"
-        ? { klienId: user.id }
-        : user.role === "PERENCANA"
-          ? { OR: [{ status: "BARU" as const }, { perencanaId: user.id }] }
-          : {};
-    const projects = await prisma.project.findMany({
-      where,
-      orderBy: { updatedAt: "desc" },
-      include: {
-        klien: { select: { name: true } },
-        perencana: { select: { name: true } },
-        model: { select: { id: true } },
-      },
-    });
-    return jsonOk(projects);
-  } catch (e) {
-    return handleApiError(e);
-  }
-}
+import { handleApiError, jsonOk, requireRole } from "@/lib/authz";
 
 async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
   const key = process.env.GOOGLE_MAPS_SERVER_KEY;

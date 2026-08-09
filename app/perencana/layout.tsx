@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { homeForRole } from "@/lib/authz";
 import HeaderNav from "@/components/ui/HeaderNav";
 
 export default async function PerencanaLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user) redirect("/masuk");
-  if (session.user.role === "KLIEN") redirect("/klien");
+  if (homeForRole(session.user.role) !== "/perencana") redirect(homeForRole(session.user.role));
 
   return (
     <div className="min-h-screen">

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Polygon } from "geojson";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { JOB_SELECT } from "@/lib/jobs/runner";
 import WorkspacePerencana from "@/components/perencana/WorkspacePerencana";
 import type { LayerMeta } from "@/components/viewer/types";
 import type { JobInfo } from "@/hooks/useStatusJob";
@@ -21,7 +22,7 @@ export default async function HalamanWorkspace({
       jobs: {
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { id: true, status: true, step: true, progress: true, error: true },
+        select: JOB_SELECT,
       },
       klien: { select: { name: true } },
     },

@@ -1,11 +1,9 @@
 import type { Polygon } from "geojson";
-import { createLimiter, retry } from "@/lib/util";
+import { clamp, createLimiter, retry } from "@/lib/util";
 import { ELEVATION_GRID_MAX } from "../config";
 import { encodePolyline } from "../lib/polyline-encode";
 import type { Projector } from "../lib/projection";
 import type { Heightmap } from "../types";
-
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 interface ElevationBody {
   status?: string;

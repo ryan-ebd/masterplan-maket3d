@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { AlertCircle, Boxes, Check, Loader2, MapPin } from "lucide-react";
 import { fetcher } from "@/lib/fetcher";
+import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { formatKoordinat } from "@/components/ui/Eyebrow";
 import { Input, Label, Textarea } from "@/components/ui/Field";
@@ -91,15 +92,7 @@ export default function FormProyekBaru() {
           </p>
         )}
       </div>
-      {error && (
-        <p
-          role="alert"
-          className="flex items-start gap-2 rounded-md bg-rose-50 px-3.5 py-2.5 text-sm text-danger"
-        >
-          <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden />
-          {error}
-        </p>
-      )}
+      {error && <Alert>{error}</Alert>}
       <Button type="submit" disabled={loading || !titik} className="px-6 py-2.5">
         {loading ? (
           <>

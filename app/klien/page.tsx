@@ -1,19 +1,30 @@
 import Link from "next/link";
-import { ArrowUpRight, Boxes, MapPin, Plus } from "lucide-react";
+import { ArrowUpRight, Boxes, Plus } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import BadgeStatus from "@/components/ui/BadgeStatus";
 import { btnCls } from "@/components/ui/Button";
 import { cardCls } from "@/components/ui/Card";
-import { Eyebrow, formatKoordinat } from "@/components/ui/Eyebrow";
+import { Eyebrow } from "@/components/ui/Eyebrow";
 import { GarisKontur } from "@/components/ui/GarisKontur";
+import { LokasiProyek } from "@/components/ui/LokasiProyek";
 
 export default async function DashboardKlien() {
   const session = await auth();
   const projects = await prisma.project.findMany({
     where: { klienId: session!.user.id },
     orderBy: { updatedAt: "desc" },
-    include: { perencana: { select: { name: true } } },
+    // hanya kolom kartu — boundary/zonesMeta JSON tidak ikut terangkut
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      address: true,
+      locationLat: true,
+      locationLng: true,
+      updatedAt: true,
+      perencana: { select: { name: true } },
+    },
   });
 
   return (
@@ -65,14 +76,7 @@ export default async function DashboardKlien() {
                 <BadgeStatus status={p.status} />
               </div>
               <p className="mt-2 flex items-center gap-1.5 text-sm text-muted">
-                <MapPin size={14} className="shrink-0 text-primary" aria-hidden />
-                <span className="line-clamp-1">
-                  {p.address ?? (
-                    <span className="font-mono text-xs">
-                      {formatKoordinat(p.locationLat, p.locationLng)}
-                    </span>
-                  )}
-                </span>
+                <LokasiProyek address={p.address} lat={p.locationLat} lng={p.locationLng} clamp />
               </p>
               <div className="mt-4 flex items-center justify-between border-t border-line pt-3 text-xs text-muted">
                 <span>

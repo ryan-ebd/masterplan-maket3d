@@ -2,6 +2,7 @@ import "server-only";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Polygon } from "geojson";
 import { HttpError } from "@/lib/authz";
+import { formatLuasKm2 } from "@/lib/geo";
 import { LLM_MODEL, SYSTEM_PERENCANA, anthropic } from "./anthropic";
 import { TOOL_PROPOSE_BOUNDARY, type ProposeBoundaryInput } from "./tools";
 import { validasiUsulan } from "./suggestBoundary";
@@ -45,7 +46,7 @@ export async function chatLlm(
   userMessage: string,
 ): Promise<ChatResult> {
   const boundaryInfo = project.boundary
-    ? `boundary saat ini: ${( (project.boundary as Polygon).coordinates?.[0]?.length ?? 1) - 1} vertex, luas ${project.areaM2 ? (project.areaM2 / 1e6).toFixed(3) + " km²" : "?"}`
+    ? `boundary saat ini: ${( (project.boundary as Polygon).coordinates?.[0]?.length ?? 1) - 1} vertex, luas ${project.areaM2 ? formatLuasKm2(project.areaM2) : "?"}`
     : "boundary belum ditentukan";
 
   const konteksProyek =

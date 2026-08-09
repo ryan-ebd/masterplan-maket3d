@@ -1,8 +1,15 @@
 import { retry, sleep } from "@/lib/util";
 import { OVERPASS_ENDPOINTS, USER_AGENT } from "../config";
 
-/** POST query Overpass QL dengan rotasi endpoint + retry. Lempar error bila semua gagal. */
-export async function queryOverpass(q: string): Promise<unknown> {
+/**
+ * POST query Overpass QL dengan rotasi endpoint + retry. Lempar error bila semua gagal.
+ * Jalur interaktif (mis. konteks LLM) sebaiknya menurunkan timeoutMs/retries.
+ */
+export async function queryOverpass(
+  q: string,
+  opts: { timeoutMs?: number; retries?: number } = {},
+): Promise<unknown> {
+  const { timeoutMs = 90_000, retries = 2 } = opts;
   let lastErr: unknown = new Error("Overpass tidak terjangkau");
   for (const url of OVERPASS_ENDPOINTS) {
     try {
@@ -15,7 +22,7 @@ export async function queryOverpass(q: string): Promise<unknown> {
               "User-Agent": USER_AGENT,
             },
             body: "data=" + encodeURIComponent(q),
-            signal: AbortSignal.timeout(90_000),
+            signal: AbortSignal.timeout(timeoutMs),
           });
           if (!res.ok) {
             throw new Error(`Overpass ${new URL(url).host} HTTP ${res.status}`);
@@ -26,7 +33,7 @@ export async function queryOverpass(q: string): Promise<unknown> {
           }
           return (await res.json()) as unknown;
         },
-        { retries: 2, minDelayMs: 2000, factor: 4 },
+        { retries, minDelayMs: 2000, factor: 4 },
       );
     } catch (e) {
       lastErr = e;

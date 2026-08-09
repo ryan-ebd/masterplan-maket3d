@@ -1,11 +1,12 @@
 import Link from "next/link";
+import type { Polygon } from "geojson";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Boxes, Info, MapPin } from "lucide-react";
+import { ArrowLeft, Boxes, Info } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import BadgeStatus from "@/components/ui/BadgeStatus";
-import { formatKoordinat } from "@/components/ui/Eyebrow";
 import { GarisKontur } from "@/components/ui/GarisKontur";
+import { LokasiProyek } from "@/components/ui/LokasiProyek";
 import Viewer3D from "@/components/viewer/Viewer3D";
 import type { LayerMeta } from "@/components/viewer/types";
 
@@ -51,12 +52,11 @@ export default async function DetailProyekKlien({
           <BadgeStatus status={project.status} />
         </div>
         <p className="mt-2 flex items-center gap-1.5 text-sm text-muted">
-          <MapPin size={14} className="shrink-0 text-primary" aria-hidden />
-          {project.address ?? (
-            <span className="font-mono text-xs">
-              {formatKoordinat(project.locationLat, project.locationLng)}
-            </span>
-          )}
+          <LokasiProyek
+            address={project.address}
+            lat={project.locationLat}
+            lng={project.locationLng}
+          />
           {project.perencana && (
             <span className="text-muted">· Perencana: {project.perencana.name}</span>
           )}
@@ -97,6 +97,7 @@ export default async function DetailProyekKlien({
             version={project.model.updatedAt.toISOString()}
             layersMeta={project.model.layersMeta as unknown as LayerMeta[]}
             stats={project.model.stats}
+            boundary={project.boundary as unknown as Polygon | null}
           />
           {project.boundaryNote && (
             <p className="mt-4 flex items-start gap-2 rounded-md border border-line bg-surface p-4 text-sm leading-relaxed text-muted">

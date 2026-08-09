@@ -3,11 +3,10 @@ import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
+import { STORAGE_ROOT } from "@/lib/storage";
 import { HttpError, assertProjectAccess, handleApiError } from "@/lib/authz";
 
 export const runtime = "nodejs";
-
-const STORAGE_ROOT = path.resolve(process.env.STORAGE_DIR ?? "./storage/models");
 
 export async function GET(
   req: Request,
@@ -22,7 +21,10 @@ export async function GET(
       throw new HttpError(403, "Maket belum dipublikasikan");
     }
 
-    const model = await prisma.model3D.findUnique({ where: { projectId } });
+    const model = await prisma.model3D.findUnique({
+      where: { projectId },
+      select: { glbPath: true }, // stats/layersMeta JSON besar tidak dibutuhkan di sini
+    });
     if (!model) throw new HttpError(404, "Model 3D belum tersedia");
 
     // Anti path-traversal: resolve lalu pastikan tetap di dalam STORAGE_ROOT

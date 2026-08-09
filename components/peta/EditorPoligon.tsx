@@ -5,6 +5,7 @@ import { AdvancedMarker, Map, useMap, useMapsLibrary } from "@vis.gl/react-googl
 import { AlertTriangle, CheckCheck, Loader2, PenLine, RotateCcw, Ruler, Save, X } from "lucide-react";
 import {
   MAX_AREA_M2,
+  formatLuasKm2,
   pathToClosedRing,
   polygonAreaM2,
   ringToPath,
@@ -13,6 +14,11 @@ import {
   type LngLat,
 } from "@/lib/geo";
 import PoligonEditable from "./PoligonEditable";
+
+/** Draft usulan LLM — objek BARU per usulan; identitasnya memicu muat ulang editor. */
+export interface DraftRing {
+  ring: LngLat[];
+}
 
 const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID ?? "DEMO_MAP_ID";
 
@@ -43,14 +49,13 @@ function PolylinePreview({ path }: { path: LatLng[] }) {
 export default function EditorPoligon({
   center,
   initialRing,
-  draftNonce = 0,
+  draft = null,
   onSave,
   saving,
 }: {
   center: LatLng;
   initialRing: LngLat[] | null;
-  /** Naik tiap kali ada draft baru dari LLM — memaksa muat ulang walau koordinatnya identik. */
-  draftNonce?: number;
+  draft?: DraftRing | null;
   onSave: (ring: LngLat[], note?: string) => Promise<void>;
   saving: boolean;
 }) {
@@ -60,12 +65,11 @@ export default function EditorPoligon({
   const [note, setNote] = useState("");
 
   useEffect(() => {
-    if (initialRing) {
-      setPath(ringToPath(initialRing));
+    if (draft) {
+      setPath(ringToPath(draft.ring));
       setMode("lihat");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(initialRing), draftNonce]);
+  }, [draft]);
 
   const luasM2 = useMemo(() => {
     if (path.length < 3) return null;
@@ -134,7 +138,7 @@ export default function EditorPoligon({
             }`}
           >
             {kebesaran ? <AlertTriangle size={12} aria-hidden /> : <Ruler size={12} aria-hidden />}
-            {(luasM2 / 1e6).toFixed(3)} km²
+            {formatLuasKm2(luasM2)}
             {kebesaran && " · melebihi batas 4 km²"}
           </span>
         )}

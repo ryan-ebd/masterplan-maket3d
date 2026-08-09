@@ -4,8 +4,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-
-const CACHE_DIR = path.resolve(process.env.STORAGE_DIR ?? "./storage/models", "..", "cache");
+import { CACHE_DIR } from "@/lib/storage";
 
 export function osmCacheKey(projectId: string, boundary: unknown): string {
   const h = createHash("sha1").update(JSON.stringify(boundary)).digest("hex").slice(0, 16);

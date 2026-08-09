@@ -10,9 +10,9 @@ import type { Prisma } from "@prisma/client";
 
 if (fs.existsSync(".env")) process.loadEnvFile(".env");
 
-const STORAGE_ROOT = path.resolve(process.env.STORAGE_DIR ?? "./storage/models");
-
 async function main() {
+  // dynamic import agar loadEnvFile di atas sempat mengisi STORAGE_DIR
+  const { STORAGE_ROOT } = await import("@/lib/storage");
   const [projectId, flag] = process.argv.slice(2);
   if (!projectId) {
     console.error("Pakai: tsx scripts/run-pipeline.ts <projectId> [--fixture]");

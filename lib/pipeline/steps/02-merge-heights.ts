@@ -1,4 +1,5 @@
-import { DEFAULT_HEIGHT_ZONA } from "../config";
+import { clamp } from "@/lib/util";
+import { DEFAULT_HEIGHT_ZONA, type ZoneType } from "../config";
 import type { OsmData } from "../types";
 
 /**
@@ -17,14 +18,13 @@ export function parseHeightMeter(raw?: string): number | null {
   return v;
 }
 
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-
 /** Tinggi default kawasan dari zonesMeta LLM (tipe zona pertama yang dikenal). */
 function tinggiZona(zonesMeta?: { name: string; type: string }[] | null): number | null {
   if (!zonesMeta) return null;
   for (const z of zonesMeta) {
-    const t = z.type?.toLowerCase();
-    if (t && t in DEFAULT_HEIGHT_ZONA) return DEFAULT_HEIGHT_ZONA[t];
+    const t = z.type?.toLowerCase() as ZoneType | undefined;
+    const v = t ? DEFAULT_HEIGHT_ZONA[t] : undefined;
+    if (v != null) return v;
   }
   return null;
 }

@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { AlertCircle, ArrowRight, DraftingCompass, Loader2, UserRound } from "lucide-react";
+import { ArrowRight, DraftingCompass, Loader2, UserRound } from "lucide-react";
+import { fetcher } from "@/lib/fetcher";
+import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Field";
 
@@ -27,13 +29,7 @@ export default function FormDaftar() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const body = await res.json();
-      if (!res.ok || !body.ok) throw new Error(body?.error?.message ?? "Pendaftaran gagal");
+      await fetcher("/api/auth/register", { method: "POST", body: JSON.stringify(form) });
       const login = await signIn("credentials", {
         email: form.email,
         password: form.password,
@@ -120,15 +116,7 @@ export default function FormDaftar() {
           })}
         </div>
       </fieldset>
-      {error && (
-        <p
-          role="alert"
-          className="flex items-start gap-2 rounded-md bg-rose-50 px-3.5 py-2.5 text-sm text-danger"
-        >
-          <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden />
-          {error}
-        </p>
-      )}
+      {error && <Alert>{error}</Alert>}
       <Button type="submit" disabled={loading} className="w-full">
         {loading ? (
           <>

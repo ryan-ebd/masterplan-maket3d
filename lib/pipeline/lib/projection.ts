@@ -12,6 +12,21 @@ export interface Projector {
   toLngLat(x: number, y: number): [number, number];
 }
 
+/** Bbox axis-aligned dari ring meter lokal. */
+export function bboxOfMeterRing(ring: [number, number][]) {
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const [x, y] of ring) {
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  return { minX, minY, maxX, maxY };
+}
+
 export function makeProjector(boundary: Polygon): Projector {
   const c = turf.centroid(turf.feature(boundary)).geometry.coordinates;
   const lng0 = c[0];

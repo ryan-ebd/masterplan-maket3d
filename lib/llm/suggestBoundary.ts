@@ -2,7 +2,7 @@ import "server-only";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Polygon } from "geojson";
 import { HttpError } from "@/lib/authz";
-import { validateBoundaryRing, type LngLat } from "@/lib/geo";
+import { BOUNDARY_LIMITS, validateBoundaryRing, type LngLat } from "@/lib/geo";
 import { LLM_MODEL, SYSTEM_PERENCANA, anthropic } from "./anthropic";
 import { TOOL_PROPOSE_BOUNDARY, type ProposeBoundaryInput } from "./tools";
 import { ringkasKonteks } from "./overpassContext";
@@ -31,13 +31,7 @@ export function validasiUsulan(
   polygon: number[][],
   center: { lat: number; lng: number },
 ): ReturnType<typeof validateBoundaryRing> {
-  return validateBoundaryRing(polygon as LngLat[], {
-    minVertices: 6,
-    maxVertices: 30,
-    minAreaM2: 50_000, // 0.05 km²
-    center,
-    maxDistanceKm: 3,
-  });
+  return validateBoundaryRing(polygon as LngLat[], { ...BOUNDARY_LIMITS.llm, center });
 }
 
 /** Panggil Claude dgn tool_choice paksa + loop perbaikan via tool_result is_error (maks 3). */

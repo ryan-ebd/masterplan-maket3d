@@ -1,4 +1,5 @@
 import type { Feature, LineString, Polygon } from "geojson";
+import type { PipelineStepId } from "./config";
 
 export interface PipelineInput {
   projectId: string;
@@ -6,7 +7,7 @@ export interface PipelineInput {
   zonesMeta?: { name: string; type: string }[] | null;
 }
 
-export type PipelineReport = (progress: number, step: string) => Promise<void>;
+export type PipelineReport = (progress: number, step: PipelineStepId) => Promise<void>;
 
 export interface LayerMeta {
   id: string;

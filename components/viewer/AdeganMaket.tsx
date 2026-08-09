@@ -4,6 +4,7 @@ import { Component, Suspense, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import ModelMaket from "./ModelMaket";
+import BasemapPlane from "./BasemapPlane";
 
 /**
  * useGLTF melempar saat GLB gagal diambil/di-parse. Tanpa boundary ini, satu berkas
@@ -24,10 +25,14 @@ export default function AdeganMaket({
   url,
   layerAktif,
   onPick,
+  basemapUrl,
+  basemapSisi,
 }: {
   url: string;
   layerAktif: string[];
   onPick: (featureId: number) => void;
+  basemapUrl?: string | null;
+  basemapSisi?: number;
 }) {
   return (
     <Canvas
@@ -47,6 +52,14 @@ export default function AdeganMaket({
         shadow-camera-bottom={-300}
         shadow-camera-far={800}
       />
+      {/* Boundary + Suspense terpisah dari model: basemap gagal ≠ model hilang */}
+      {basemapUrl && basemapSisi && (
+        <ModelErrorBoundary>
+          <Suspense fallback={null}>
+            <BasemapPlane url={basemapUrl} sisi={basemapSisi} />
+          </Suspense>
+        </ModelErrorBoundary>
+      )}
       {/* useGLTF suspending — tanpa Suspense seluruh pohon kanvas menggantung tanpa error */}
       <ModelErrorBoundary>
         <Suspense fallback={null}>

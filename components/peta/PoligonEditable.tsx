@@ -77,7 +77,6 @@ export default function PoligonEditable({
     poly.setPath(path);
     attachListeners(poly);
     suppressRef.current = false;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
 
   useEffect(() => {

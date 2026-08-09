@@ -1,5 +1,6 @@
 import osmtogeojson from "osmtogeojson";
 import type { Feature, LineString, MultiPolygon, Polygon } from "geojson";
+import { openRing, type LngLat } from "@/lib/geo";
 import { klasifikasiJalan } from "../config";
 import { queryOverpass } from "../lib/overpass";
 import { osmCacheKey, readOsmCache, writeOsmCache } from "../lib/osmCache";
@@ -7,15 +8,9 @@ import type { OsmData } from "../types";
 
 /** Ring boundary [lng,lat] -> string poly Overpass "lat lng lat lng ..." (LAT DULU!). */
 function toPolyString(boundary: Polygon): string {
-  const ring = boundary.coordinates[0];
-  // buang titik penutup duplikat
-  const open =
-    ring.length > 1 &&
-    ring[0][0] === ring[ring.length - 1][0] &&
-    ring[0][1] === ring[ring.length - 1][1]
-      ? ring.slice(0, -1)
-      : ring;
-  return open.map(([lng, lat]) => `${lat} ${lng}`).join(" ");
+  return openRing(boundary.coordinates[0] as LngLat[])
+    .map(([lng, lat]) => `${lat} ${lng}`)
+    .join(" ");
 }
 
 /** Pecah MultiPolygon jadi Polygon per-poligon, PERTAHANKAN hole (ring index > 0). */
