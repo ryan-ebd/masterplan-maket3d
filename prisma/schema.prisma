@@ -56,6 +56,7 @@ model Project {
   boundaryNote String? // alasan/anotasi dari LLM atau perencana
   areaM2       Float? // luas terhitung, untuk validasi batas maks
   zonesMeta    Json? // suggested_zones dari LLM: [{name, type}]
+  roofDefaults Json? // roof_defaults dari LLM: [{zone_type, shape, pitch_deg, note}]
 
   klien       User    @relation("KlienProjects", fields: [klienId], references: [id])
   klienId     String

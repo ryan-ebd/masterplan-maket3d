@@ -5,6 +5,8 @@ export interface PipelineInput {
   projectId: string;
   boundary: Polygon; // [lng,lat], ring tertutup
   zonesMeta?: { name: string; type: string }[] | null;
+  /** roof_defaults dari tool propose_boundary (opsional — fallback ke tipologi bawaan). */
+  roofDefaults?: RoofDefault[] | null;
 }
 
 export type PipelineReport = (progress: number, step: PipelineStepId) => Promise<void>;
@@ -38,6 +40,19 @@ export interface BuildingInfo {
   heightM: number;
   heightSource: "osm" | "levels" | "zone" | "default";
   osmId?: string | number;
+  /** Bentuk atap: dari tag OSM bila ada, selebihnya estimasi zona (LLM). */
+  roofShape: import("./lib/roof").BentukAtap;
+  roofHeightM: number;
+  roofSource: "osm" | "zone" | "default";
+  zoneType: import("./config").ZoneType;
+}
+
+/** Usulan tipologi atap per jenis zona — dihasilkan LLM, dipakai step merge-heights. */
+export interface RoofDefault {
+  zone_type: string;
+  shape: string;
+  pitch_deg?: number;
+  note?: string;
 }
 
 /** Ring dalam meter lokal: [x(timur), y(utara)][] */

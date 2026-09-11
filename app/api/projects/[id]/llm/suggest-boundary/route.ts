@@ -20,6 +20,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       boundaryNote: hasil.reasoning,
       areaM2: hasil.areaM2,
       zonesMeta: hasil.suggested_zones as unknown as Prisma.InputJsonValue,
+      roofDefaults: hasil.roof_defaults as unknown as Prisma.InputJsonValue,
     });
 
     return jsonOk({

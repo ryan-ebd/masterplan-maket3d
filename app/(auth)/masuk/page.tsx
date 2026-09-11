@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Box } from "lucide-react";
 import FormMasuk from "@/components/auth/FormMasuk";
+import MasukCepat from "@/components/auth/MasukCepat";
 import { GarisKontur } from "@/components/ui/GarisKontur";
 
 export default function HalamanMasuk() {
@@ -25,13 +26,7 @@ export default function HalamanMasuk() {
             Daftar
           </Link>
         </p>
-        <div className="mt-6 rounded-md border border-line bg-background p-3 text-xs text-muted">
-          <p className="font-mono font-semibold uppercase tracking-wider text-primary">
-            Akun demo
-          </p>
-          <p className="mt-1 font-mono">klien@demo.id · perencana@demo.id</p>
-          <p className="font-mono">kata sandi: password123</p>
-        </div>
+        {process.env.NODE_ENV !== "production" && <MasukCepat />}
       </div>
     </main>
   );

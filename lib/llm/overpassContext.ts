@@ -23,8 +23,9 @@ export async function ringkasKonteks(lat: number, lng: number): Promise<string |
 
   let body: { elements?: OverpassGeomElement[] };
   try {
-    // jalur interaktif: timeout pendek tanpa retry — konteks ini opsional
-    body = (await queryOverpass(q, { timeoutMs: 30_000, retries: 0 })) as {
+    // Jalur interaktif: 1 retry (504 Overpass sering sesaat) tapi total <=45 dtk,
+    // supaya "Usulkan Batas Otomatis" tidak menggantung. Gagal -> null, LLM jalan tanpa konteks.
+    body = (await queryOverpass(q, { timeoutMs: 15_000, retries: 1, deadlineMs: 45_000 })) as {
       elements?: OverpassGeomElement[];
     };
   } catch {

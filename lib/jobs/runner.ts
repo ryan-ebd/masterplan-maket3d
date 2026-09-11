@@ -2,6 +2,7 @@ import { readdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { Prisma } from "@prisma/client";
 import type { Polygon } from "geojson";
+import type { RoofDefault } from "@/lib/pipeline/types";
 import { prisma } from "@/lib/prisma";
 import { STORAGE_ROOT } from "@/lib/storage";
 import { runPipeline } from "@/lib/pipeline";
@@ -69,6 +70,7 @@ async function runJob(jobId: string, projectId: string) {
         projectId,
         boundary: project.boundary as unknown as Polygon,
         zonesMeta: project.zonesMeta as unknown as { name: string; type: string }[] | null,
+        roofDefaults: project.roofDefaults as unknown as RoofDefault[] | null,
       },
       report,
     );

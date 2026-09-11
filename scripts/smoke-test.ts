@@ -45,6 +45,17 @@ async function cekOverpass() {
   hasil.push({ nama: "Overpass API", ok: false, detail: `semua endpoint gagal (${terakhir})` });
 }
 
+/** Terjemahkan status+error_message Google jadi petunjuk yang bisa ditindaklanjuti. */
+function jelaskanGagalGoogle(status?: string, pesan?: string) {
+  const dasar = `status: ${status}${pesan ? ` — ${pesan}` : ""}`;
+  if (pesan?.includes("referer restrictions")) {
+    return `${dasar}\n     -> Key ini dibatasi HTTP referrer. Elevation/Geocoding dipanggil server-ke-server (tanpa referrer)\n        sehingga SELALU ditolak. Buat key BARU di Cloud Console: Application restrictions = None (atau IP),\n        API restrictions = Geocoding API + Elevation API, lalu isikan ke GOOGLE_MAPS_SERVER_KEY.`;
+  }
+  if (status === "REQUEST_DENIED") return `${dasar}\n     -> Cek: API sudah di-enable? Billing aktif? Key benar?`;
+  if (status === "OVER_QUERY_LIMIT") return `${dasar}\n     -> Kuota/billing habis pada project Cloud ini.`;
+  return dasar;
+}
+
 async function cekElevation() {
   const key = process.env.GOOGLE_MAPS_SERVER_KEY;
   if (!key) {
@@ -55,14 +66,14 @@ async function cekElevation() {
     `https://maps.googleapis.com/maps/api/elevation/json?locations=-6.9175,107.6098&key=${key}`,
     { signal: AbortSignal.timeout(15_000) },
   );
-  const body = (await res.json()) as { status?: string; results?: { elevation: number }[] };
+  const body = (await res.json()) as { status?: string; error_message?: string; results?: { elevation: number }[] };
   hasil.push({
     nama: "Google Elevation",
     ok: body.status === "OK",
     detail:
       body.status === "OK"
         ? `elevasi Bandung ≈ ${body.results?.[0]?.elevation.toFixed(0)} m`
-        : `status: ${body.status}`,
+        : jelaskanGagalGoogle(body.status, body.error_message),
   });
 }
 
@@ -76,11 +87,14 @@ async function cekGeocoding() {
     `https://maps.googleapis.com/maps/api/geocode/json?latlng=-6.9175,107.6098&key=${key}&language=id`,
     { signal: AbortSignal.timeout(15_000) },
   );
-  const body = (await res.json()) as { status?: string; results?: { formatted_address: string }[] };
+  const body = (await res.json()) as { status?: string; error_message?: string; results?: { formatted_address: string }[] };
   hasil.push({
     nama: "Google Geocoding",
     ok: body.status === "OK",
-    detail: body.status === "OK" ? body.results?.[0]?.formatted_address ?? "" : `status: ${body.status}`,
+    detail:
+      body.status === "OK"
+        ? body.results?.[0]?.formatted_address ?? ""
+        : jelaskanGagalGoogle(body.status, body.error_message),
   });
 }
 

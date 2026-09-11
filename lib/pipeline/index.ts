@@ -28,7 +28,7 @@ export async function runPipeline(
 
   // [2] fetch-heights (20 -> 25)
   await report(20, "fetch-heights");
-  mergeHeights(osm, input.zonesMeta);
+  mergeHeights(osm, input.zonesMeta, input.roofDefaults);
 
   // Proyektor dibuat sekali — dipakai elevation (grid meter) & clipping
   const proj = makeProjector(input.boundary);

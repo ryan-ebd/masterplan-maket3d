@@ -21,13 +21,18 @@ export const TOOL_PROPOSE_BOUNDARY: Anthropic.Tool = {
   input_schema: {
     type: "object",
     additionalProperties: false,
-    required: ["polygon", "reasoning", "suggested_zones", "assumptions"],
+    required: ["polygon", "reasoning", "suggested_zones", "roof_defaults", "assumptions"],
     properties: {
       polygon: {
         type: "array",
         description:
           "Daftar vertex poligon, tiap item [lng, lat] dalam derajat desimal WGS84. " +
-          `${L.minVertices}-${L.maxVertices} vertex, tanpa titik penutup.`,
+          `${L.minVertices}-${L.maxVertices} vertex, tanpa titik penutup. ` +
+          "WAJIB terurut mengelilingi titik pusat secara BERLAWANAN ARAH JARUM JAM " +
+          "(sudut bearing naik terus, tanpa melompat mundur). Poligon yang menyilang " +
+          "dirinya sendiri akan ditolak — ini kesalahan paling sering terjadi saat " +
+          "mencoba menelusuri jalan: lebih baik sedikit vertex yang rapi daripada " +
+          "banyak vertex yang berbelit.",
         items: { type: "array", items: { type: "number" } },
       },
       reasoning: {
@@ -51,6 +56,41 @@ export const TOOL_PROPOSE_BOUNDARY: Anthropic.Tool = {
           },
         },
       },
+      roof_defaults: {
+        type: "array",
+        description:
+          "Tipologi atap per jenis zona — WAJIB diisi, satu entri untuk tiap type di suggested_zones. " +
+          "Data OSM Indonesia hampir tak pernah punya roof:shape, jadi inilah satu-satunya sumber " +
+          "bentuk atap maket. Tanpa ini semua bangunan jadi kotak beratap datar, tidak sesuai citra satelit.",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["zone_type", "shape", "pitch_deg", "note"],
+          properties: {
+            zone_type: {
+              type: "string",
+              description: `Persis sama dengan salah satu type di suggested_zones (${ZONE_TYPES.join("|")}).`,
+            },
+            shape: {
+              type: "string",
+              description:
+                "flat (dak beton) | gabled (pelana) | hipped (limasan) | " +
+                "pyramidal (limas, khas masjid) | skillion (sengkuap satu arah)",
+            },
+            pitch_deg: {
+              type: "number",
+              description:
+                "Kemiringan atap dalam derajat, 5-45 (isi 0 bila shape=flat). Genteng rumah Indonesia lazim 25-35; " +
+                "ruko 15-22; gudang 10-18; flat abaikan (isi 0).",
+            },
+            note: {
+              type: "string",
+              description:
+                "Alasan singkat bahasa Indonesia, mis. \"kampung padat, genteng limasan terlihat jelas dari udara\".",
+            },
+          },
+        },
+      },
       assumptions: {
         type: "array",
         description: "Asumsi yang dipakai (mis. tinggi bangunan default).",
@@ -64,5 +104,6 @@ export interface ProposeBoundaryInput {
   polygon: number[][];
   reasoning: string;
   suggested_zones: { name: string; type: string }[];
+  roof_defaults?: { zone_type: string; shape: string; pitch_deg?: number; note?: string }[];
   assumptions: string[];
 }

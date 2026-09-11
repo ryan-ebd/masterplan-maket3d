@@ -6,6 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Polygon } from "geojson";
+import type { RoofDefault } from "@/lib/pipeline/types";
 import type { Prisma } from "@prisma/client";
 
 if (fs.existsSync(".env")) process.loadEnvFile(".env");
@@ -54,6 +55,7 @@ async function main() {
       projectId,
       boundary: project.boundary as unknown as Polygon,
       zonesMeta: project.zonesMeta as unknown as { name: string; type: string }[] | null,
+      roofDefaults: project.roofDefaults as unknown as RoofDefault[] | null,
     },
     async (progress, step) => {
       console.log(`[${String(progress).padStart(3)}%] ${step}`);

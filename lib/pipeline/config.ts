@@ -58,3 +58,23 @@ export const LAYER_LABELS: Record<string, string> = {
   terrain: "Terrain",
   papan: "Papan Maket",
 };
+
+/**
+ * Tipologi atap default per jenis zona (dipakai bila OSM tak punya `roof:shape`
+ * DAN LLM tidak mengusulkan roof_defaults). Angka = rasio tinggi atap terhadap
+ * setengah-lebar bangunan; ~0.45 setara kemiringan 24°, 0.6 ≈ 31°.
+ */
+export const ATAP_ZONA: Record<
+  string,
+  { shape: "flat" | "gabled" | "hipped" | "pyramidal" | "skillion"; rasio: number }
+> = {
+  perumahan: { shape: "hipped", rasio: 0.5 }, // limasan genteng — dominan di kampung kota
+  komersial: { shape: "gabled", rasio: 0.25 }, // ruko: pelana landai di balik parapet
+  industri: { shape: "gabled", rasio: 0.2 }, // pabrik/gudang bentang lebar
+  fasum: { shape: "hipped", rasio: 0.45 }, // sekolah, kantor kelurahan
+  campuran: { shape: "gabled", rasio: 0.35 },
+  default: { shape: "hipped", rasio: 0.45 },
+};
+
+/** Bangunan lebih tinggi dari ini dianggap bertingkat/modern -> atap datar. */
+export const TINGGI_ATAP_DATAR_M = 15;

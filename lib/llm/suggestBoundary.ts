@@ -12,6 +12,7 @@ export interface SuggestResult {
   areaM2: number;
   reasoning: string;
   suggested_zones: { name: string; type: string }[];
+  roof_defaults: { zone_type: string; shape: string; pitch_deg?: number; note?: string }[];
   assumptions: string[];
   historyBlocks: unknown[]; // riwayat blok content utuh utk LlmSession
 }
@@ -94,11 +95,16 @@ export async function suggestBoundary(
         areaM2: hasil.areaM2,
         reasoning: input.reasoning ?? "",
         suggested_zones: input.suggested_zones ?? [],
+        roof_defaults: input.roof_defaults ?? [],
         assumptions: input.assumptions ?? [],
         historyBlocks: JSON.parse(JSON.stringify(messages)) as unknown[],
       };
     }
 
+    console.warn(
+      `[suggestBoundary] percobaan ${percobaan + 1}/3 ditolak: ${hasil.error} ` +
+        `(vertex=${input.polygon?.length ?? 0})`,
+    );
     messages.push({
       role: "user",
       content: [

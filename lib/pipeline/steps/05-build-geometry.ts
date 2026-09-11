@@ -1,10 +1,22 @@
 import { Z_OFFSET } from "../config";
 import { MeshBuilder, boxInto, extrudeInto, flatPolygonInto } from "../lib/extrude";
+import { bangunAtap } from "../lib/roof";
 import type { Heightmap, MeshData, ProjectedData } from "../types";
 
 export interface GeometryResult {
   meshes: MeshData[];
-  features: Record<number, { heightM: number; heightSource: string; osmId?: string | number }>;
+  features: Record<
+    number,
+    {
+      heightM: number;
+      heightSource: string;
+      osmId?: string | number;
+      roofShape?: string;
+      roofHeightM?: number;
+      zoneType?: string;
+      roofSource?: string;
+    }
+  >;
   counts: { buildings: number; roads: number; waterBodies: number };
 }
 
@@ -28,8 +40,25 @@ export function buildGeometry(p: ProjectedData, terrain: Heightmap | null): Geom
       }
       baseZ = terrain.sampleBilinear(cx / outer.length, cy / outer.length) - 0.5;
     }
-    extrudeInto(bb, bld.rings, baseZ, bld.info.heightM, i);
-    features[i] = { heightM: bld.info.heightM, heightSource: bld.info.heightSource, osmId: bld.info.osmId };
+    // Dinding sampai tepi atap (tanpa tutup datar), lalu atap dibangun sesuai bentuknya
+    const atapMiring = bld.info.roofShape !== "flat" && bld.info.roofHeightM > 0.2;
+    // tinggi total tetap = heightM: badan bangunan dikurangi tinggi atap
+    const tinggiBadan = atapMiring
+      ? Math.max(2.2, bld.info.heightM - bld.info.roofHeightM)
+      : bld.info.heightM;
+    extrudeInto(bb, bld.rings, baseZ, tinggiBadan, i, atapMiring);
+    if (atapMiring) {
+      bangunAtap(bb, bld.rings, baseZ + tinggiBadan, bld.info.roofShape, bld.info.roofHeightM, i);
+    }
+    features[i] = {
+      heightM: bld.info.heightM,
+      heightSource: bld.info.heightSource,
+      osmId: bld.info.osmId,
+      roofShape: bld.info.roofShape,
+      roofHeightM: Math.round(bld.info.roofHeightM * 10) / 10,
+      roofSource: bld.info.roofSource,
+      zoneType: bld.info.zoneType,
+    };
   });
   const bMesh = bb.toMeshData("bangunan", "bangunan", true);
   if (bMesh) meshes.push(bMesh);

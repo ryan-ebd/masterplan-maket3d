@@ -83,13 +83,19 @@ export function extrudeInto(
   baseZ: number,
   height: number,
   fid?: number,
+  /** true = jangan tutup bagian atas; pemanggil membangun atap sendiri (lihat roof.ts) */
+  tanpaTutupAtas = false,
 ) {
   const rings = sanitizeRings(ringsInput);
   if (rings.length === 0) return;
 
   const topZ = baseZ + height;
 
-  // (1) tutup atas
+  // (1) tutup atas (dilewati bila atap miring dibangun terpisah)
+  if (tanpaTutupAtas) {
+    bangunDinding(b, rings, baseZ, topZ, fid);
+    return;
+  }
   const { vertices, holes, dimensions } = flatten(
     rings.map((r) => r.map(([x, y]) => [x, y])),
   );
@@ -104,6 +110,17 @@ export function extrudeInto(
   }
 
   // (2) dinding — outer CCW & hole CW membuat rumus normal sama utk keduanya
+  bangunDinding(b, rings, baseZ, topZ, fid);
+}
+
+/** Dinding vertikal per-edge, normal per-face (vertex tidak dishare). */
+function bangunDinding(
+  b: MeshBuilder,
+  rings: MeterRing[],
+  baseZ: number,
+  topZ: number,
+  fid?: number,
+) {
   for (const ring of rings) {
     for (let i = 0; i < ring.length; i++) {
       const [px, py] = ring[i];
@@ -122,6 +139,11 @@ export function extrudeInto(
       b.addTriangle(v0, v2, v3);
     }
   }
+}
+
+/** Ring tersanitasi (winding benar, tanpa duplikat) — dipakai roof.ts agar konsisten. */
+export function sanitizeRingsPublik(rings: MeterRing[]): MeterRing[] {
+  return sanitizeRings(rings);
 }
 
 /** Poligon datar (jalan/air): earcut, z per-vertex via zAt (drape terrain). */

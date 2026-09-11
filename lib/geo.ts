@@ -101,9 +101,25 @@ export function validateBoundaryRing(
 
   let feature = turf.polygon([ring]);
 
-  // self-intersection
-  if (turf.kinks(feature).features.length > 0) {
-    return { ok: false, error: "poligon memotong dirinya sendiri" };
+  // Self-intersection. Sebutkan KOORDINAT persilangannya: pesan ini dikirim balik
+  // ke LLM sebagai tool_result, dan "memotong dirinya sendiri" saja tidak cukup
+  // untuk diperbaiki — model perlu tahu ruas mana yang menyilang.
+  const kinks = turf.kinks(feature).features;
+  if (kinks.length > 0) {
+    const titik = kinks
+      .slice(0, 3)
+      .map((k) => {
+        const [x, y] = k.geometry.coordinates;
+        return `[${x.toFixed(5)},${y.toFixed(5)}]`;
+      })
+      .join(" ");
+    return {
+      ok: false,
+      error:
+        `poligon memotong dirinya sendiri di ${kinks.length} titik (${titik}` +
+        `${kinks.length > 3 ? ", dst." : ""}). Urutkan ulang vertex mengelilingi ` +
+        `pusat searah berlawanan jarum jam tanpa melompat bolak-balik`,
+    };
   }
 
   // orientasi CCW (RFC 7946)

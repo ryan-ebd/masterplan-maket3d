@@ -3,18 +3,29 @@ import { OVERPASS_ENDPOINTS, USER_AGENT } from "../config";
 
 /**
  * POST query Overpass QL dengan rotasi endpoint + retry. Lempar error bila semua gagal.
- * Jalur interaktif (mis. konteks LLM) sebaiknya menurunkan timeoutMs/retries.
+ *
+ * Endpoint publik Overpass sering membalas 504 sesaat ketika slot-nya penuh, lalu
+ * langsung sehat pada percobaan berikutnya — jadi retry berguna bahkan di jalur
+ * interaktif. Agar itu tidak membuat perencana menunggu tanpa batas, `deadlineMs`
+ * memberi anggaran waktu TOTAL: sisa anggaran membatasi timeout tiap percobaan dan
+ * menghentikan rotasi begitu habis.
  */
 export async function queryOverpass(
   q: string,
-  opts: { timeoutMs?: number; retries?: number } = {},
+  opts: { timeoutMs?: number; retries?: number; deadlineMs?: number } = {},
 ): Promise<unknown> {
-  const { timeoutMs = 90_000, retries = 2 } = opts;
+  const { timeoutMs = 90_000, retries = 2, deadlineMs } = opts;
+  const batasWaktu = deadlineMs != null ? Date.now() + deadlineMs : null;
+  const sisa = () => (batasWaktu == null ? Infinity : batasWaktu - Date.now());
+
   let lastErr: unknown = new Error("Overpass tidak terjangkau");
   for (const url of OVERPASS_ENDPOINTS) {
+    if (sisa() <= 0) break;
     try {
       return await retry(
         async () => {
+          const budget = Math.min(timeoutMs, sisa());
+          if (budget <= 0) throw new Error("Anggaran waktu Overpass habis");
           const res = await fetch(url, {
             method: "POST",
             headers: {
@@ -22,7 +33,7 @@ export async function queryOverpass(
               "User-Agent": USER_AGENT,
             },
             body: "data=" + encodeURIComponent(q),
-            signal: AbortSignal.timeout(timeoutMs),
+            signal: AbortSignal.timeout(budget),
           });
           if (!res.ok) {
             throw new Error(`Overpass ${new URL(url).host} HTTP ${res.status}`);
@@ -37,6 +48,7 @@ export async function queryOverpass(
       );
     } catch (e) {
       lastErr = e;
+      if (sisa() <= 1000) break;
       await sleep(1000); // jeda sebelum pindah mirror
     }
   }

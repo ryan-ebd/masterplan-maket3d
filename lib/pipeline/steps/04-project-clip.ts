@@ -58,6 +58,10 @@ export function projectClip(
           heightM: (props.heightM as number) ?? 7,
           heightSource: (props.heightSource as BuildingInfo["heightSource"]) ?? "default",
           osmId: props.osmId as string | undefined,
+          roofShape: (props.roofShape as BuildingInfo["roofShape"]) ?? "flat",
+          roofHeightM: (props.roofHeightM as number) ?? 0,
+          zoneType: (props.zoneType as BuildingInfo["zoneType"]) ?? "campuran",
+          roofSource: (props.roofSource as BuildingInfo["roofSource"]) ?? "default",
         },
       });
     } catch {

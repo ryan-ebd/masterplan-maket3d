@@ -26,12 +26,12 @@ npm run dev                     # http://localhost:3000
 
 ## Skrip penting
 
-| Perintah | Fungsi |
-|---|---|
-| `npm run smoke` | Uji kredensial Overpass / Elevation / Geocoding / Anthropic / Maps |
-| `npm run fixture` | Tulis GLB fixture statis (uji kontrak viewer tanpa API eksternal) |
-| `npm run pipeline <projectId>` | Jalankan pipeline 3D dari CLI (tanpa web UI) |
-| `npm run pipeline <projectId> -- --fixture` | Daftarkan fixture sebagai model proyek |
+| Perintah                                    | Fungsi                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------ |
+| `npm run smoke`                             | Uji kredensial Overpass / Elevation / Geocoding / Anthropic / Maps |
+| `npm run fixture`                           | Tulis GLB fixture statis (uji kontrak viewer tanpa API eksternal)  |
+| `npm run pipeline <projectId>`              | Jalankan pipeline 3D dari CLI (tanpa web UI)                       |
+| `npm run pipeline <projectId> -- --fixture` | Daftarkan fixture sebagai model proyek                             |
 
 ## Arsitektur singkat
 
@@ -51,6 +51,38 @@ npm run dev                     # http://localhost:3000
   (Drawing Library Google sudah deprecated, dihapus Mei 2026).
 
 Atribusi wajib: “© OpenStreetMap contributors” (ODbL) di viewer, atribusi Google di peta.
+
+## Bentuk atap
+
+Data OSM Indonesia hampir tidak pernah punya `roof:shape`, sehingga bentuk atap ditentukan
+berjenjang: **tag OSM** (`roof:shape`, `roof:height`, `roof:levels`) → **usulan LLM**
+(`roof_defaults` per zona, dari tool `propose_boundary`) → **tabel bawaan** `ATAP_ZONA`
+(tipologi Indonesia: kampung → limasan, ruko → pelana landai, gedung ≥15 m → dak datar).
+
+Bentuk atap ditentukan **per bangunan**, bukan satu untuk seluruh kawasan (`tipologiBangunan()`
+di `steps/02-merge-heights.ts`): tag OSM dipakai lebih dulu, lalu — karena ~90% bangunan Indonesia
+hanya bertag `building=yes` — luas dan kelangsingan footprint dipakai menebak tipologi
+(petak sempit-memanjang → ruko/komersial, footprint kecil → rumah, bentang sangat lebar → gudang).
+Zona hasil tebakan itulah yang dicocokkan ke `roof_defaults` LLM.
+
+Geometri dibangun `lib/pipeline/lib/roof.ts`: `flat`, `gabled` (pelana, punggungan mengikuti
+sumbu panjang via minimum-area bounding rectangle), `hipped` (limasan), `pyramidal` (limas,
+khas masjid), `skillion` (sengkuap). Tinggi total bangunan dipertahankan — badan dikurangi
+tinggi atap, jadi siluet kota tidak ikut naik.
+
+Uji cepat tanpa API eksternal:
+
+```bash
+npm run fixture:atap   # tulis storage/models/fixture/atap.glb berisi 5 bentuk berjajar
+npm run cek:atap       # verifikasi puncak & arah punggungan tiap bentuk
+```
+
+Uji prompt atap ke Claude sungguhan (butuh `ANTHROPIC_API_KEY`, tanpa Google API):
+
+```bash
+npm run uji:atap-llm            # titik contoh Bandung
+npm run uji:atap-llm <projectId>  # sekaligus simpan roof_defaults ke proyek
+```
 
 ## Design system
 
