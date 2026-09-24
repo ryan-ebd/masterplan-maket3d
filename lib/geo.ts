@@ -73,6 +73,33 @@ export interface BoundaryValidation {
 }
 
 /**
+ * Deteksi titik self-intersection sebuah ring tertutup ([lng,lat][], first=last).
+ * Dipakai server (validateBoundaryRing) DAN client (feedback live di editor) —
+ * satu sumber kebenaran supaya pesan tidak drift.
+ */
+export function detectKinks(ring: LngLat[]): LngLat[] {
+  if (ring.length < 4) return [];
+  try {
+    return turf.kinks(turf.polygon([ring])).features.map((k) => k.geometry.coordinates as LngLat);
+  } catch {
+    return [];
+  }
+}
+
+/** Format pesan self-intersection dari hasil `detectKinks` (Bahasa Indonesia, sama dengan validator server). */
+export function formatKinkError(kinks: LngLat[]): string {
+  const titik = kinks
+    .slice(0, 3)
+    .map(([x, y]) => `[${x.toFixed(5)},${y.toFixed(5)}]`)
+    .join(" ");
+  return (
+    `poligon memotong dirinya sendiri di ${kinks.length} titik (${titik}` +
+    `${kinks.length > 3 ? ", dst." : ""}). Urutkan ulang vertex mengelilingi ` +
+    `pusat searah berlawanan jarum jam tanpa melompat bolak-balik`
+  );
+}
+
+/**
  * Validasi poligon boundary (dipakai PUT /boundary DAN loop validasi LLM).
  * ring: [lng,lat][], boleh belum tertutup (akan ditutup).
  */
@@ -104,22 +131,9 @@ export function validateBoundaryRing(
   // Self-intersection. Sebutkan KOORDINAT persilangannya: pesan ini dikirim balik
   // ke LLM sebagai tool_result, dan "memotong dirinya sendiri" saja tidak cukup
   // untuk diperbaiki — model perlu tahu ruas mana yang menyilang.
-  const kinks = turf.kinks(feature).features;
+  const kinks = detectKinks(ring);
   if (kinks.length > 0) {
-    const titik = kinks
-      .slice(0, 3)
-      .map((k) => {
-        const [x, y] = k.geometry.coordinates;
-        return `[${x.toFixed(5)},${y.toFixed(5)}]`;
-      })
-      .join(" ");
-    return {
-      ok: false,
-      error:
-        `poligon memotong dirinya sendiri di ${kinks.length} titik (${titik}` +
-        `${kinks.length > 3 ? ", dst." : ""}). Urutkan ulang vertex mengelilingi ` +
-        `pusat searah berlawanan jarum jam tanpa melompat bolak-balik`,
-    };
+    return { ok: false, error: formatKinkError(kinks) };
   }
 
   // orientasi CCW (RFC 7946)

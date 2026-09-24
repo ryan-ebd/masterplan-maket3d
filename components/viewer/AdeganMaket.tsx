@@ -10,10 +10,16 @@ import BasemapPlane from "./BasemapPlane";
  * useGLTF melempar saat GLB gagal diambil/di-parse. Tanpa boundary ini, satu berkas
  * rusak merobohkan seluruh halaman (bukan hanya kanvas).
  */
-class ModelErrorBoundary extends Component<{ children: ReactNode }, { gagal: boolean }> {
+class ModelErrorBoundary extends Component<
+  { children: ReactNode; onError?: (pesan: string) => void },
+  { gagal: boolean }
+> {
   state = { gagal: false };
   static getDerivedStateFromError() {
     return { gagal: true };
+  }
+  componentDidCatch(error: Error) {
+    this.props.onError?.(error.message || "Gagal memuat");
   }
   render() {
     if (this.state.gagal) return null; // kanvas tetap hidup; pesan ditampilkan overlay di bawah
@@ -27,12 +33,18 @@ export default function AdeganMaket({
   onPick,
   basemapUrl,
   basemapSisi,
+  basemapTinggi,
+  onBasemapLoaded,
+  onBasemapError,
 }: {
   url: string;
   layerAktif: string[];
   onPick: (featureId: number) => void;
   basemapUrl?: string | null;
   basemapSisi?: number;
+  basemapTinggi?: number;
+  onBasemapLoaded?: () => void;
+  onBasemapError?: (pesan: string) => void;
 }) {
   return (
     <Canvas
@@ -52,12 +64,18 @@ export default function AdeganMaket({
         shadow-camera-bottom={-300}
         shadow-camera-far={800}
       />
-      {/* Boundary + Suspense terpisah dari model: basemap gagal ≠ model hilang */}
+      {/* Boundary terpisah dari model: basemap gagal ≠ model hilang. key={basemapUrl}
+          memaksa remount saat ganti mode satelit/peta — reset error boundary
+          & pemuatan tekstur lama, bukan hanya berharap effect ganti url. */}
       {basemapUrl && basemapSisi && (
-        <ModelErrorBoundary>
-          <Suspense fallback={null}>
-            <BasemapPlane url={basemapUrl} sisi={basemapSisi} />
-          </Suspense>
+        <ModelErrorBoundary key={basemapUrl} onError={onBasemapError}>
+          <BasemapPlane
+            url={basemapUrl}
+            sisi={basemapSisi}
+            tinggi={basemapTinggi ?? basemapSisi}
+            onLoaded={onBasemapLoaded}
+            onError={onBasemapError}
+          />
         </ModelErrorBoundary>
       )}
       {/* useGLTF suspending — tanpa Suspense seluruh pohon kanvas menggantung tanpa error */}

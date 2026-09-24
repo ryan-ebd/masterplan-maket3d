@@ -9,6 +9,13 @@ const MODE_BASEMAP: { id: ModeBasemap; label: string }[] = [
   { id: "peta", label: "Peta" },
 ];
 
+/**
+ * Layer yang menutup alas dan disembunyikan saat basemap aktif: papan (sisi
+ * tebalnya mengintip di bawah plane) dan terrain (mesh opaque di y≥0 menutupi
+ * seluruh footprint — tanpa ini citra hanya terlihat di tepi luar).
+ */
+export const LAYER_TERTUTUP_BASEMAP: readonly string[] = ["papan", "terrain"];
+
 export default function PanelLayer({
   layersMeta,
   aktif,
@@ -32,7 +39,7 @@ export default function PanelLayer({
       </p>
       <div className="space-y-1">
         {layersMeta.map((l) => {
-          const nonaktif = l.id === "papan" && basemap !== "off";
+          const nonaktif = basemap !== "off" && LAYER_TERTUTUP_BASEMAP.includes(l.id);
           return (
             <label
               key={l.id}

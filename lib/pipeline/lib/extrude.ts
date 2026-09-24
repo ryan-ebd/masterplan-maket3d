@@ -76,6 +76,8 @@ interface ZFn {
 /**
  * Ekstrusi footprint: tutup atas (earcut) + dinding per-edge (normal per-face, vertex tidak
  * dishare), tanpa tutup bawah. Seluruh footprint memakai SATU baseZ (bangunan tidak miring).
+ * Mengembalikan false bila footprint tidak menghasilkan geometri (ring kosong / triangulasi
+ * gagal) — pemanggil WAJIB melaporkannya, jangan biarkan bangunan hilang diam-diam.
  */
 export function extrudeInto(
   b: MeshBuilder,
@@ -85,22 +87,22 @@ export function extrudeInto(
   fid?: number,
   /** true = jangan tutup bagian atas; pemanggil membangun atap sendiri (lihat roof.ts) */
   tanpaTutupAtas = false,
-) {
+): boolean {
   const rings = sanitizeRings(ringsInput);
-  if (rings.length === 0) return;
+  if (rings.length === 0) return false;
 
   const topZ = baseZ + height;
 
   // (1) tutup atas (dilewati bila atap miring dibangun terpisah)
   if (tanpaTutupAtas) {
     bangunDinding(b, rings, baseZ, topZ, fid);
-    return;
+    return true;
   }
   const { vertices, holes, dimensions } = flatten(
     rings.map((r) => r.map(([x, y]) => [x, y])),
   );
   const tri = earcut(vertices, holes, dimensions);
-  if (tri.length === 0) return; // triangulasi gagal — skip footprint ini
+  if (tri.length === 0) return false; // triangulasi gagal
   const base = b.vertexCount;
   for (let i = 0; i < vertices.length; i += 2) {
     b.addVertex(vertices[i], vertices[i + 1], topZ, 0, 0, 1, fid);
@@ -111,6 +113,7 @@ export function extrudeInto(
 
   // (2) dinding — outer CCW & hole CW membuat rumus normal sama utk keduanya
   bangunDinding(b, rings, baseZ, topZ, fid);
+  return true;
 }
 
 /** Dinding vertikal per-edge, normal per-face (vertex tidak dishare). */

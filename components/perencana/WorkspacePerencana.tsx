@@ -79,6 +79,7 @@ export default function WorkspacePerencana({
     onSelesai: () => router.refresh(),
   });
   const sedangJalan = jobKini?.status === "QUEUED" || jobKini?.status === "RUNNING";
+  const perluCobaLagi = jobKini?.status === "ERROR" || project.status === "GAGAL";
 
   async function simpanBoundary(r: LngLat[], note?: string) {
     setSavingBoundary(true);
@@ -99,6 +100,13 @@ export default function WorkspacePerencana({
 
   async function generate() {
     if (mengirimGenerate) return; // cegah klik ganda sebelum job pertama terdaftar
+    const ok = window.confirm(
+      perluCobaLagi
+        ? "Jalankan ulang generate maket 3D untuk proyek ini? Proses sebelumnya akan diganti."
+        : "Mulai generate maket 3D untuk proyek ini? Proses ini membutuhkan waktu dan kuota generate.",
+    );
+    if (!ok) return;
+
     setMengirimGenerate(true);
     setErrorAksi(null);
     setPesan(null);
@@ -112,8 +120,6 @@ export default function WorkspacePerencana({
       setMengirimGenerate(false);
     }
   }
-
-  const perluCobaLagi = jobKini?.status === "ERROR" || project.status === "GAGAL";
 
   return (
     <div className="space-y-6">

@@ -2,9 +2,21 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AdvancedMarker, Map, useMap, useMapsLibrary } from "@vis.gl/react-google-maps";
-import { AlertTriangle, CheckCheck, Loader2, PenLine, RotateCcw, Ruler, Save, X } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCheck,
+  Loader2,
+  PenLine,
+  RotateCcw,
+  Ruler,
+  Save,
+  Undo2,
+  X,
+} from "lucide-react";
 import {
   MAX_AREA_M2,
+  detectKinks,
+  formatKinkError,
   formatLuasKm2,
   pathToClosedRing,
   polygonAreaM2,
@@ -23,7 +35,7 @@ export interface DraftRing {
 const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID ?? "DEMO_MAP_ID";
 
 /** Preview garis saat mode gambar (wrapper imperatif kecil google.maps.Polyline). */
-function PolylinePreview({ path }: { path: LatLng[] }) {
+function PolylinePreview({ path, warning = false }: { path: LatLng[]; warning?: boolean }) {
   const map = useMap();
   const maps = useMapsLibrary("maps");
   const ref = useRef<google.maps.Polyline | null>(null);
@@ -42,6 +54,10 @@ function PolylinePreview({ path }: { path: LatLng[] }) {
   useEffect(() => {
     ref.current?.setPath(path);
   }, [path]);
+
+  useEffect(() => {
+    ref.current?.setOptions({ strokeColor: warning ? "#e11d48" : "#1e5a46" });
+  }, [warning]);
 
   return null;
 }
@@ -71,6 +87,28 @@ export default function EditorPoligon({
     }
   }, [draft]);
 
+  // Undo titik terakhir sambil menggambar (tombol + tombol Backspace/Delete).
+  useEffect(() => {
+    if (mode !== "gambar") return;
+    function handleKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      if (e.key === "Backspace" || e.key === "Delete") {
+        e.preventDefault();
+        setGambar((g) => g.slice(0, -1));
+      }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [mode]);
+
+  // Deteksi self-intersection LIVE saat menggambar (mirror validator server).
+  const gambarKinks = useMemo(
+    () => (gambar.length >= 3 ? detectKinks(pathToClosedRing(gambar)) : []),
+    [gambar],
+  );
+  const gambarSelfIntersecting = gambarKinks.length > 0;
+
   const luasM2 = useMemo(() => {
     if (path.length < 3) return null;
     try {
@@ -80,6 +118,13 @@ export default function EditorPoligon({
     }
   }, [path]);
   const kebesaran = luasM2 != null && luasM2 > MAX_AREA_M2;
+
+  // Deteksi self-intersection pada batas final (mode lihat, termasuk setelah digeser).
+  const pathKinks = useMemo(
+    () => (path.length >= 3 ? detectKinks(pathToClosedRing(path)) : []),
+    [path],
+  );
+  const pathSelfIntersecting = pathKinks.length > 0;
 
   const tombolSekunder =
     "flex min-h-9 cursor-pointer items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-1.5 text-sm font-medium transition-all duration-200 hover:border-primary hover:bg-primary/5 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40";
@@ -103,7 +148,7 @@ export default function EditorPoligon({
           <>
             <button
               type="button"
-              disabled={gambar.length < 4}
+              disabled={gambar.length < 4 || gambarSelfIntersecting}
               onClick={() => {
                 setPath(gambar);
                 setMode("lihat");
@@ -112,6 +157,15 @@ export default function EditorPoligon({
             >
               <CheckCheck size={15} aria-hidden />
               Tutup Poligon ({gambar.length} titik)
+            </button>
+            <button
+              type="button"
+              disabled={gambar.length === 0}
+              onClick={() => setGambar((g) => g.slice(0, -1))}
+              className={tombolSekunder}
+            >
+              <Undo2 size={15} aria-hidden />
+              Urungkan Titik
             </button>
             <button type="button" onClick={() => setMode("lihat")} className={tombolSekunder}>
               <X size={15} aria-hidden />
@@ -160,13 +214,46 @@ export default function EditorPoligon({
           {mode === "lihat" && path.length >= 3 && (
             <PoligonEditable path={path} onChange={setPath} editable={!saving} />
           )}
-          {mode === "gambar" && <PolylinePreview path={gambar} />}
+          {mode === "gambar" && <PolylinePreview path={gambar} warning={gambarSelfIntersecting} />}
+          {mode === "gambar" &&
+            gambarKinks.map(([lng, lat], i) => (
+              <AdvancedMarker key={`kink-${i}-${lng}-${lat}`} position={{ lat, lng }}>
+                <div className="h-3 w-3 rounded-full border-2 border-white bg-rose-600 shadow" />
+              </AdvancedMarker>
+            ))}
         </Map>
       </div>
 
-      {mode === "gambar" && (
-        <p className="rounded-md border border-line bg-background px-3.5 py-2.5 text-sm text-muted">
-          Klik peta untuk menambah titik batas (minimal 4), lalu tekan “Tutup Poligon”.
+      {mode === "gambar" &&
+        (gambarSelfIntersecting ? (
+          <p
+            role="alert"
+            className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-danger"
+          >
+            <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
+            <span>
+              Poligon tidak valid: {formatKinkError(gambarKinks)}. Tekan “Urungkan Titik” untuk
+              membatalkan titik terakhir, atau lanjutkan mengelilingi kawasan satu arah tanpa
+              melompat bolak-balik.
+            </span>
+          </p>
+        ) : (
+          <p className="rounded-md border border-line bg-background px-3.5 py-2.5 text-sm text-muted">
+            Klik peta untuk menambah titik batas (minimal 4) mengelilingi kawasan satu arah
+            (berlawanan jarum jam), lalu tekan “Tutup Poligon”.
+          </p>
+        ))}
+
+      {mode === "lihat" && pathSelfIntersecting && (
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm text-danger"
+        >
+          <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
+          <span>
+            Poligon tidak valid: {formatKinkError(pathKinks)}. Geser vertex yang menyilang sebelum
+            menyimpan.
+          </span>
         </p>
       )}
 
@@ -183,7 +270,7 @@ export default function EditorPoligon({
         />
         <button
           type="button"
-          disabled={saving || path.length < 3 || kebesaran}
+          disabled={saving || path.length < 3 || kebesaran || pathSelfIntersecting}
           onClick={() => onSave(pathToClosedRing(path), note || undefined)}
           className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors duration-200 hover:bg-emerald-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
         >

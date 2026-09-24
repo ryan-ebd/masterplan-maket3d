@@ -1,4 +1,4 @@
-import type { Feature, LineString, Polygon } from "geojson";
+import type { Feature, LineString, Point, Polygon } from "geojson";
 import type { PipelineStepId } from "./config";
 
 export interface PipelineInput {
@@ -29,11 +29,28 @@ export interface MeshData {
 
 export type Hierarki = "arteri" | "kolektor" | "lokal";
 
+/** Kerapatan tajuk vegetasi areal OSM → jarak sampel pohon (lihat config POHON). */
+export type KerapatanVegetasi = "rapat" | "sedang" | "jarang";
+
 export interface OsmData {
   buildings: Feature<Polygon>[]; // properties: tag OSM + osmId
   roads: { hierarki: Hierarki; feature: Feature<LineString> }[];
   waterPolys: Feature<Polygon>[];
   waterLines: Feature<LineString>[];
+  /** natural=tree (titik individu). */
+  trees: Feature<Point>[];
+  /** natural=tree_row (deretan pohon sepanjang garis). */
+  treeRows: Feature<LineString>[];
+  /** Areal bervegetasi (wood/forest/scrub/park/garden/grass) untuk disampel jadi titik pohon. */
+  vegetation: { kerapatan: KerapatanVegetasi; feature: Feature<Polygon> }[];
+}
+
+/** Satu pohon dalam meter lokal (x timur, y utara). */
+export interface PohonMeter {
+  x: number;
+  y: number;
+  tinggi: number;
+  radiusTajuk: number;
 }
 
 export interface BuildingInfo {
@@ -62,8 +79,15 @@ export interface ProjectedData {
   buildings: { rings: MeterRing[]; info: BuildingInfo }[];
   roads: Record<Hierarki, MeterRing[][]>; // daftar poligon (dengan hole) per hierarki
   water: MeterRing[][];
+  trees: PohonMeter[];
   boundaryRing: MeterRing;
   bbox: { minX: number; minY: number; maxX: number; maxY: number };
+  /** Akuntansi bangunan: berapa dari OSM, berapa dipotong di tepi, berapa dibuang & kenapa. */
+  laporanBangunan: {
+    osm: number;
+    dipotong: number;
+    dibuang: { luar: number; kink: number; sliver: number; degenerate: number };
+  };
 }
 
 export interface Heightmap {

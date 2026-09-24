@@ -7,10 +7,15 @@
  * skillion (sengkuap/miring satu arah). Empat terakhir mendominasi lanskap Indonesia.
  */
 import earcut, { flatten } from "earcut";
-import type { MeshBuilder } from "./extrude";
+import { sanitizeRingsPublik, type MeshBuilder } from "./extrude";
 import type { MeterRing } from "../types";
 
 export type BentukAtap = "flat" | "gabled" | "hipped" | "pyramidal" | "skillion";
+
+/** Di atas ini footprint dianggap terlalu rumit untuk atap miring → tutup datar. */
+const MAKS_VERTEX_MIRING = 40;
+/** Inset ring (limasan/limas) hanya andal pada footprint sederhana; lebih dari ini pakai pelana MABR. */
+const MAKS_VERTEX_INSET = 12;
 
 /** Luas bertanda (shoelace) — dipakai untuk winding & centroid. */
 function signedArea(ring: MeterRing): number {
@@ -191,17 +196,26 @@ function tutupDatar(b: MeshBuilder, rings: MeterRing[], z: number, fid?: number)
  */
 export function bangunAtap(
   b: MeshBuilder,
-  rings: MeterRing[],
+  ringsInput: MeterRing[],
   eaveZ: number,
-  bentuk: BentukAtap,
+  bentukDiminta: BentukAtap,
   tinggiAtap: number,
   fid?: number,
 ) {
+  // Winding disamakan dengan dinding (outer CCW): normal bidang atap dihitung dari
+  // urutan vertex, ring OSM yang CW membuat atap menghadap ke bawah (tersapu backface).
+  const rings = sanitizeRingsPublik(ringsInput);
   const luar = rings[0];
   if (!luar || luar.length < 3) return;
 
-  // Atap miring hanya untuk footprint sederhana tanpa lubang; sisanya datar
-  const bolehMiring = rings.length === 1 && tinggiAtap > 0.2 && luar.length <= 12;
+  // Footprint rumit (L/U/salib) → inset limasan tidak andal; pelana MABR tetap masuk akal.
+  const bentuk: BentukAtap =
+    (bentukDiminta === "hipped" || bentukDiminta === "pyramidal") && luar.length > MAKS_VERTEX_INSET
+      ? "gabled"
+      : bentukDiminta;
+
+  // Atap miring hanya untuk footprint tanpa lubang & tidak terlalu rumit; sisanya datar
+  const bolehMiring = rings.length === 1 && tinggiAtap > 0.2 && luar.length <= MAKS_VERTEX_MIRING;
   if (bentuk === "flat" || !bolehMiring) {
     tutupDatar(b, rings, eaveZ, fid);
     return;

@@ -42,7 +42,7 @@ export async function exportGlb(
         doc.createAccessor().setType("VEC3").setArray(toYUp(m.normals)).setBuffer(buffer),
       )
       .setIndices(doc.createAccessor().setType("SCALAR").setArray(m.indices).setBuffer(buffer))
-      .setMaterial(makeMaterial(doc, m.layer));
+      .setMaterial(makeMaterial(doc, m.layer, m.name));
 
     if (m.featureIds) {
       prim.setAttribute(

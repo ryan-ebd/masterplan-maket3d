@@ -1,5 +1,11 @@
 import { clamp } from "@/lib/util";
-import { ATAP_ZONA, DEFAULT_HEIGHT_ZONA, TINGGI_ATAP_DATAR_M, type ZoneType } from "../config";
+import {
+  ATAP_IBADAH,
+  ATAP_ZONA,
+  DEFAULT_HEIGHT_ZONA,
+  TINGGI_ATAP_DATAR_M,
+  type ZoneType,
+} from "../config";
 import type { BentukAtap } from "../lib/roof";
 import type { OsmData, RoofDefault } from "../types";
 
@@ -72,6 +78,7 @@ export function mergeHeights(
     const dim = dimensiFootprint(b);
     const zonaBangunan = tipologiBangunan(props, dim);
     const atapZona = cariAtap(zonaBangunan);
+    const ibadah = jenisIbadah(props);
 
     let heightM: number | null = parseHeightMeter(props.height as string | undefined);
     let source: string = "osm";
@@ -83,6 +90,15 @@ export function mergeHeights(
         heightM = levels * 3.2 + (Number.isFinite(roof) && roof > 0 ? roof * 2.5 : 0);
         source = "levels";
       }
+    }
+    if (heightM == null && ibadah) {
+      // Rumah ibadah: nave/kubah jauh lebih tinggi dari "fasum 8 m"
+      const t = ATAP_IBADAH[ibadah];
+      heightM =
+        String(props.building ?? "").toLowerCase() === "cathedral"
+          ? (t.tinggiKatedral ?? t.tinggi)
+          : t.tinggi;
+      source = "zone";
     }
     if (heightM == null) {
       // Tinggi khas menurut tipologi bangunan itu sendiri; zona kawasan dari LLM
@@ -109,9 +125,15 @@ export function mergeHeights(
     const dariOsm = normalisasiBentukAtap(props["roof:shape"] as string | undefined);
     let bentuk: BentukAtap;
     let roofSource: "osm" | "zone" | "default";
+    let rasioAtap = atapZona.rasio;
     if (dariOsm) {
       bentuk = dariOsm;
       roofSource = "osm";
+    } else if (ibadah) {
+      // Tipologi ibadah menang atas aturan tinggi: nave gereja 18 m tetap pelana, bukan dak
+      bentuk = ATAP_IBADAH[ibadah].shape;
+      rasioAtap = ATAP_IBADAH[ibadah].rasio;
+      roofSource = "default";
     } else if (tinggiFinal >= TINGGI_ATAP_DATAR_M) {
       // gedung bertingkat: dak beton, bukan genteng
       bentuk = "flat";
@@ -128,7 +150,7 @@ export function mergeHeights(
       if (Number.isFinite(rl) && rl > 0) roofH = rl * 2.5;
     }
     if (roofH == null && bentuk !== "flat") {
-      roofH = atapZona.rasio * (dim.pendek / 2);
+      roofH = rasioAtap * (dim.pendek / 2);
     }
     props.roofShape = bentuk;
     props.roofHeightM = bentuk === "flat" ? 0 : clamp(roofH ?? 2, 0.6, 12);
@@ -165,6 +187,27 @@ function dimensiFootprint(f: { geometry: { coordinates: number[][][] } }): {
   const panjang = Math.max(pendek, Math.max(lebarM, tinggiM));
   // bbox melebih-lebihkan bangunan menyerong; 0.82 mendekatkan ke luas sebenarnya
   return { pendek, panjang, luasM2: pendek * panjang * 0.82 };
+}
+
+/**
+ * Jenis rumah ibadah dari tag OSM (building=* lebih dulu, lalu religion=* pada
+ * amenity=place_of_worship). Tanpa tag agama, tempat ibadah di Indonesia paling
+ * mungkin masjid/musala.
+ */
+export function jenisIbadah(props: Record<string, unknown>): keyof typeof ATAP_IBADAH | null {
+  const building = String(props.building ?? "").toLowerCase();
+  const religion = String(props.religion ?? "").toLowerCase();
+  const amenity = String(props.amenity ?? "").toLowerCase();
+
+  if (["church", "cathedral", "chapel"].includes(building)) return "gereja";
+  if (building === "mosque") return "masjid";
+  if (["temple", "shrine", "monastery"].includes(building)) return "pura";
+  if (amenity === "place_of_worship") {
+    if (religion === "christian") return "gereja";
+    if (["hindu", "buddhist", "taoist", "confucian"].includes(religion)) return "pura";
+    return "masjid";
+  }
+  return null;
 }
 
 /**

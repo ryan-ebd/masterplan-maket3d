@@ -1,10 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import type { Polygon } from "geojson";
-import PanelLayer from "./PanelLayer";
+import PanelLayer, { LAYER_TERTUTUP_BASEMAP } from "./PanelLayer";
 import KartuInfoBangunan from "./KartuInfoBangunan";
 import { hitungBasemap } from "@/lib/basemap";
 import type { InfoBangunan, LayerMeta, ModeBasemap } from "./types";
@@ -44,18 +44,35 @@ export default function Viewer3D({
   );
   const [basemap, setBasemap] = useState<ModeBasemap>("off");
   const [info, setInfo] = useState<InfoBangunan | null>(null);
+  const [basemapStatus, setBasemapStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [basemapErrorMsg, setBasemapErrorMsg] = useState<string | null>(null);
 
   const url = `/api/models/${projectId}/model.glb?v=${version}`;
 
   const geo = useMemo(() => (boundary ? hitungBasemap(boundary) : null), [boundary]);
-  // Papan disembunyikan saat basemap aktif — sisi tebalnya akan mengintip di
-  // bawah plane citra, dan offset kecil pasti z-fight pada far:8000.
+  // Papan + terrain disembunyikan saat basemap aktif (lihat LAYER_TERTUTUP_BASEMAP);
+  // plane citra di y=-0.01 menggantikan keduanya sebagai alas.
   const layerTampil =
-    basemap === "off" ? layerAktif : layerAktif.filter((l) => l !== "papan");
+    basemap === "off"
+      ? layerAktif
+      : layerAktif.filter((l) => !LAYER_TERTUTUP_BASEMAP.includes(l));
   const basemapUrl =
     basemap !== "off" && geo
       ? `/api/models/${projectId}/basemap?t=${basemap}&v=${version}`
       : null;
+
+  // Reset status setiap kali url berubah (ganti mode) — AdeganMaket melapor balik
+  // via onBasemapLoaded/onBasemapError begitu fetch tekstur selesai/gagal.
+  useEffect(() => {
+    setBasemapStatus("loading");
+    setBasemapErrorMsg(null);
+  }, [basemapUrl]);
+
+  const onBasemapLoaded = useCallback(() => setBasemapStatus("ready"), []);
+  const onBasemapError = useCallback((pesan: string) => {
+    setBasemapStatus("error");
+    setBasemapErrorMsg(pesan);
+  }, []);
 
   function onPick(featureId: number) {
     setInfo((stats as StatsShape | undefined)?.features?.[String(featureId)] ?? null);
@@ -72,6 +89,9 @@ export default function Viewer3D({
         onPick={onPick}
         basemapUrl={basemapUrl}
         basemapSisi={geo?.sisiMeter}
+        basemapTinggi={geo?.tinggiMeter}
+        onBasemapLoaded={onBasemapLoaded}
+        onBasemapError={onBasemapError}
       />
       <PanelLayer
         layersMeta={layersMeta}
@@ -84,6 +104,21 @@ export default function Viewer3D({
         basemapTersedia={!!geo}
       />
       <KartuInfoBangunan info={info} onClose={() => setInfo(null)} />
+      {basemapUrl && basemapStatus === "loading" && (
+        <p className="absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded border border-line bg-surface/90 px-2.5 py-1.5 font-mono text-xs text-muted">
+          <Loader2 size={13} className="animate-spin" aria-hidden />
+          Memuat citra alas peta…
+        </p>
+      )}
+      {basemapUrl && basemapStatus === "error" && (
+        <p
+          role="alert"
+          className="absolute left-3 top-3 z-10 flex max-w-[70%] items-start gap-1.5 rounded border border-rose-200 bg-rose-50 px-2.5 py-1.5 font-mono text-xs text-danger"
+        >
+          <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden />
+          Gagal memuat alas peta{basemapErrorMsg ? `: ${basemapErrorMsg}` : ""}
+        </p>
+      )}
       <p className="absolute bottom-3 left-3 z-10 rounded border border-line bg-surface/90 px-2.5 py-1 font-mono text-[10px] text-muted">
         © OpenStreetMap contributors · Peta © Google
       </p>

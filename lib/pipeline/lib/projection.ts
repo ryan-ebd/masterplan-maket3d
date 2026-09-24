@@ -1,8 +1,6 @@
-// Proyeksi equirectangular lokal (origin = centroid boundary) — akurat utk kawasan < ~5 km.
-import * as turf from "@turf/turf";
+// Proyeksi equirectangular lokal (origin = centroid luas boundary) — akurat utk kawasan < ~5 km.
 import type { Polygon } from "geojson";
-
-const M_PER_DEG_LAT = 110_574;
+import { M_PER_DEG_LAT, M_PER_DEG_LNG_EQUATOR, pusatBoundary } from "@/lib/basemap";
 
 export interface Projector {
   lat0: number;
@@ -28,10 +26,11 @@ export function bboxOfMeterRing(ring: [number, number][]) {
 }
 
 export function makeProjector(boundary: Polygon): Projector {
-  const c = turf.centroid(turf.feature(boundary)).geometry.coordinates;
-  const lng0 = c[0];
-  const lat0 = c[1];
-  const mPerDegLng = 111_320 * Math.cos((lat0 * Math.PI) / 180);
+  // Origin = pusatBoundary, SAMA dengan center citra basemap (lib/basemap.ts).
+  const pusat = pusatBoundary(boundary);
+  if (!pusat) throw new Error("Boundary degenerate — luas nol, tidak bisa diproyeksikan");
+  const { lat0, lng0 } = pusat;
+  const mPerDegLng = M_PER_DEG_LNG_EQUATOR * Math.cos((lat0 * Math.PI) / 180);
 
   return {
     lat0,

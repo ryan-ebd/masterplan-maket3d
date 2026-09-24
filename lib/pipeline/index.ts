@@ -52,23 +52,29 @@ export async function runPipeline(
   const projected = projectClip(osm, input.boundary, proj, warnings);
   await report(60, "build-geometry");
   const geo = buildGeometry(projected, terrain);
+  warnings.push(...geo.warnings);
 
   // [5] export-glb (85 -> 100)
   await report(85, "export-glb");
   const glbPath = `${input.projectId}/${randomUUID()}.glb`;
   await exportGlb(geo.meshes, path.resolve(STORAGE_ROOT, glbPath));
 
-  const layersMeta: LayerMeta[] = geo.meshes.map((m) => ({
-    id: m.layer,
-    label: LAYER_LABELS[m.layer] ?? m.layer,
-    nodeName: `layer:${m.layer}`,
+  // Satu layer bisa terdiri dari beberapa mesh (pohon: tajuk + batang) → dedupe per id
+  const layersMeta: LayerMeta[] = [...new Set(geo.meshes.map((m) => m.layer))].map((layer) => ({
+    id: layer,
+    label: LAYER_LABELS[layer] ?? layer,
+    nodeName: `layer:${layer}`,
     defaultVisible: true,
   }));
 
   const stats: Record<string, unknown> = {
     buildings: geo.counts.buildings,
+    // Jejak audit: OSM -> dipotong di tepi -> dibuang (alasan) -> mesh. Selisih = "lubang" yang
+    // bukan dari pipeline, melainkan bangunan yang memang tidak dipetakan OSM.
+    bangunan: projected.laporanBangunan,
     roads: geo.counts.roads,
     waterBodies: geo.counts.waterBodies,
+    trees: geo.counts.trees,
     areaM2: null as number | null,
     terrain: terrain ? { minElev: terrain.minElev, maxElev: terrain.maxElev } : null,
     features: geo.features,

@@ -1,5 +1,6 @@
 import { Z_OFFSET } from "../config";
 import { MeshBuilder, boxInto, extrudeInto, flatPolygonInto } from "../lib/extrude";
+import { pohonInto } from "../lib/pohon";
 import { bangunAtap } from "../lib/roof";
 import type { Heightmap, MeshData, ProjectedData } from "../types";
 
@@ -17,18 +18,25 @@ export interface GeometryResult {
       roofSource?: string;
     }
   >;
-  counts: { buildings: number; roads: number; waterBodies: number };
+  counts: { buildings: number; roads: number; waterBodies: number; trees: number };
+  warnings: string[];
 }
 
 export function buildGeometry(p: ProjectedData, terrain: Heightmap | null): GeometryResult {
   const meshes: MeshData[] = [];
   const features: GeometryResult["features"] = {};
+  const warnings: string[] = [];
+  const gagalExtrude: string[] = [];
 
   // --- Bangunan: SATU mesh gabungan + _FEATUREID per vertex ---
   const bb = new MeshBuilder();
+  let jumlahBangunan = 0;
   p.buildings.forEach((bld, i) => {
     const outer = bld.rings[0];
-    if (!outer || outer.length < 3) return;
+    if (!outer || outer.length < 3) {
+      gagalExtrude.push(String(bld.info.osmId ?? i));
+      return;
+    }
     // seluruh footprint satu baseZ (tidak miring), tertanam 0.5 m
     let baseZ = -0.5;
     if (terrain) {
@@ -46,10 +54,14 @@ export function buildGeometry(p: ProjectedData, terrain: Heightmap | null): Geom
     const tinggiBadan = atapMiring
       ? Math.max(2.2, bld.info.heightM - bld.info.roofHeightM)
       : bld.info.heightM;
-    extrudeInto(bb, bld.rings, baseZ, tinggiBadan, i, atapMiring);
+    if (!extrudeInto(bb, bld.rings, baseZ, tinggiBadan, i, atapMiring)) {
+      gagalExtrude.push(String(bld.info.osmId ?? i));
+      return;
+    }
     if (atapMiring) {
       bangunAtap(bb, bld.rings, baseZ + tinggiBadan, bld.info.roofShape, bld.info.roofHeightM, i);
     }
+    jumlahBangunan++;
     features[i] = {
       heightM: bld.info.heightM,
       heightSource: bld.info.heightSource,
@@ -62,6 +74,12 @@ export function buildGeometry(p: ProjectedData, terrain: Heightmap | null): Geom
   });
   const bMesh = bb.toMeshData("bangunan", "bangunan", true);
   if (bMesh) meshes.push(bMesh);
+  if (gagalExtrude.length > 0) {
+    warnings.push(
+      `${gagalExtrude.length} footprint gagal diekstrusi (triangulasi/ring kosong): ` +
+        gagalExtrude.slice(0, 5).join(", "),
+    );
+  }
 
   // --- Jalan: satu mesh per hierarki, drape ke terrain ---
   let roadCount = 0;
@@ -86,6 +104,18 @@ export function buildGeometry(p: ProjectedData, terrain: Heightmap | null): Geom
   }
   const wMesh = wb.toMeshData("air", "air");
   if (wMesh) meshes.push(wMesh);
+
+  // --- Pohon: tajuk & batang dua mesh (material beda) dalam SATU layer "pohon" ---
+  const tajuk = new MeshBuilder();
+  const batang = new MeshBuilder();
+  for (const t of p.trees) {
+    const baseZ = terrain ? terrain.sampleBilinear(t.x, t.y) : 0;
+    pohonInto(batang, tajuk, t.x, t.y, baseZ, t.tinggi, t.radiusTajuk);
+  }
+  const tajukMesh = tajuk.toMeshData("pohon", "pohon");
+  if (tajukMesh) meshes.push(tajukMesh);
+  const batangMesh = batang.toMeshData("pohon-batang", "pohon");
+  if (batangMesh) meshes.push(batangMesh);
 
   // --- Terrain: grid + skirt ---
   if (terrain) {
@@ -173,8 +203,10 @@ export function buildGeometry(p: ProjectedData, terrain: Heightmap | null): Geom
   return {
     meshes,
     features,
+    warnings,
     counts: {
-      buildings: p.buildings.length,
+      trees: p.trees.length,
+      buildings: jumlahBangunan,
       roads: roadCount,
       waterBodies: p.water.length,
     },
