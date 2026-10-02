@@ -1,5 +1,5 @@
 /**
- * Smoke test 4 API eksternal — jalankan: npm run smoke
+ * Smoke test API eksternal — jalankan: npm run smoke
  * Memastikan kredensial hidup SEBELUM fitur dibangun/di-debug di atasnya.
  */
 import fs from "node:fs";
@@ -116,6 +116,31 @@ async function cekAnthropic() {
   hasil.push({ nama: `Anthropic (${model})`, ok: !!teks, detail: teks?.type === "text" ? teks.text.trim() : "?" });
 }
 
+async function cekSeedance() {
+  const key = process.env.ARK_API_KEY;
+  if (!key) {
+    hasil.push({ nama: "BytePlus Seedance", ok: false, detail: "ARK_API_KEY kosong di .env" });
+    return;
+  }
+  const base = (process.env.ARK_BASE_URL || "https://ark.ap-southeast.bytepluses.com/api/v3").replace(/\/+$/, "");
+  // List task: tidak membuat video -> tidak memakai kredit; cukup membuktikan key + region.
+  const res = await fetch(`${base}/contents/generations/tasks?page_size=1`, {
+    headers: { Authorization: `Bearer ${key}` },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (res.ok) {
+    const model = process.env.SEEDANCE_MODEL || "dreamina-seedance-2-0-260128";
+    hasil.push({ nama: "BytePlus Seedance", ok: true, detail: `key valid, model: ${model}` });
+    return;
+  }
+  const teks = (await res.text()).slice(0, 200);
+  const petunjuk =
+    res.status === 401 || res.status === 403
+      ? "\n     -> Key ditolak. Cek ARK_API_KEY (key ModelArk, bukan key akun lain) dan region ARK_BASE_URL."
+      : "";
+  hasil.push({ nama: "BytePlus Seedance", ok: false, detail: `HTTP ${res.status} — ${teks}${petunjuk}` });
+}
+
 function cekMapsClientKey() {
   const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   hasil.push({
@@ -139,6 +164,7 @@ async function main() {
     jalan(cekElevation, "Google Elevation"),
     jalan(cekGeocoding, "Google Geocoding"),
     jalan(cekAnthropic, "Anthropic API"),
+    jalan(cekSeedance, "BytePlus Seedance"),
     jalan(() => cekMapsClientKey(), "Maps JS key"),
   ]);
 

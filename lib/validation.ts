@@ -40,3 +40,21 @@ export const llmSuggestSchema = z.object({
 export const llmChatSchema = z.object({
   message: z.string().min(1).max(4000),
 });
+
+// --- Tur maket (titik + urutan) ---
+const koordinat = z.number().finite().min(-50_000).max(50_000);
+const vec3 = z.tuple([koordinat, koordinat, koordinat]);
+
+export const titikTurSchema = z.object({
+  nama: z.string().trim().min(1).max(80),
+  deskripsi: z.string().trim().max(500).optional(),
+  featureId: z.number().int().min(0).max(10_000_000).optional(),
+  pos: vec3,
+  target: vec3,
+});
+
+export const patchTitikTurSchema = titikTurSchema.partial();
+
+export const urutanTurSchema = z.object({
+  ids: z.array(z.string().min(1).max(40)).min(1).max(20),
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Polygon } from "geojson";
@@ -32,6 +32,8 @@ import PenyediaPeta from "@/components/peta/PenyediaPeta";
 import EditorPoligon, { type DraftRing } from "@/components/peta/EditorPoligon";
 import PanelLlm from "@/components/llm/PanelLlm";
 import Viewer3D from "@/components/viewer/Viewer3D";
+import EditorTur from "@/components/perencana/EditorTur";
+import type { KameraApi } from "@/components/viewer/KameraBridge";
 import { publishProject } from "@/app/perencana/actions";
 import type { LayerMeta } from "@/components/viewer/types";
 
@@ -73,6 +75,9 @@ export default function WorkspacePerencana({
   const [mengirimGenerate, setMengirimGenerate] = useState(false);
   const [pesan, setPesan] = useState<string | null>(null);
   const [errorAksi, setErrorAksi] = useState<string | null>(null);
+  // API kamera dari viewer (ambil pose, capture frame) — dipakai editor tur
+  const kameraApiRef = useRef<KameraApi | null>(null);
+  const [featureTerpilih, setFeatureTerpilih] = useState<number | null>(null);
 
   const { job: jobKini, mutate } = useStatusJob(project.id, {
     fallbackData: lastJob,
@@ -292,6 +297,18 @@ export default function WorkspacePerencana({
             layersMeta={model.layersMeta}
             stats={model.stats}
             boundary={project.boundary}
+            kameraApiRef={kameraApiRef}
+            onPilihBangunan={setFeatureTerpilih}
+          />
+          <EditorTur
+            projectId={project.id}
+            status={project.status}
+            version={model.version}
+            layersMeta={model.layersMeta}
+            stats={model.stats}
+            boundary={project.boundary}
+            kameraApiRef={kameraApiRef}
+            featureTerpilih={featureTerpilih}
           />
         </div>
       )}

@@ -25,6 +25,14 @@ export const RATE_LIMITS = {
     windowMs: 60_000,
     pesan: "Terlalu sering — tunggu sebentar sebelum generate lagi",
   },
+  // Setiap klip memakai kredit BytePlus -> permintaan "Buat klip" dibatasi ketat.
+  klip: {
+    max: 3,
+    windowMs: 10 * 60_000,
+    pesan: "Terlalu sering membuat klip — tunggu beberapa menit (setiap klip memakai kredit)",
+  },
+  // Unggah frame titik tur (PNG ~1 MB) dan perubahan titik.
+  tur: { max: 60, windowMs: 60_000, pesan: "Terlalu banyak perubahan tur — tunggu sebentar" },
 } as const;
 
 /** Lempar 429 bila kuota bucket `nama` untuk user ini habis. */

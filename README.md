@@ -29,6 +29,7 @@ npm run dev                     # http://localhost:3000
 | Perintah                                    | Fungsi                                                             |
 | ------------------------------------------- | ------------------------------------------------------------------ |
 | `npm run smoke`                             | Uji kredensial Overpass / Elevation / Geocoding / Anthropic / Maps |
+| `npm run cek:tur`                           | Uji logika tur & body request Seedance (tanpa API/DB, tanpa kredit) |
 | `npm run fixture`                           | Tulis GLB fixture statis (uji kontrak viewer tanpa API eksternal)  |
 | `npm run pipeline <projectId>`              | Jalankan pipeline 3D dari CLI (tanpa web UI)                       |
 | `npm run pipeline <projectId> -- --fixture` | Daftarkan fixture sebagai model proyek                             |
@@ -51,6 +52,34 @@ npm run dev                     # http://localhost:3000
   (Drawing Library Google sudah deprecated, dihapus Mei 2026).
 
 Atribusi wajib: “© OpenStreetMap contributors” (ODbL) di viewer, atribusi Google di peta.
+
+## Tur maket & video Seedance
+
+Setelah maket jadi (status `REVIEW_PERENCANA`), Perencana menyusun **tur interaktif** di bawah viewer:
+
+1. Putar kamera ke sudut yang diinginkan → **Tambah titik di sudut kamera ini** (atau **Saran otomatis**
+   dari bangunan tertinggi dan terluas per zona). Tiap titik menyimpan pose kamera + **frame diam 1280×720**
+   yang dirender viewer sendiri dengan palet berwarna gaya arsitek (`lib/render/paletMaket.ts`).
+2. **Buat klip**: tiap dua titik berurutan dikirim ke **Seedance (BytePlus ModelArk)** dalam mode
+   first-frame + last-frame, sehingga video hanya mengisi gerakan di antara dua render nyata kita
+   (bentuk dan warna bangunan tidak dikarang). Klip tersambung mulus karena frame akhir klip n = frame awal klip n+1.
+3. Pengunjung (Klien, setelah proyek `SELESAI`) memilih titik: klip diputar, lalu video di-*fade out* ke
+   kanvas 3D live di pose yang identik sehingga mereka bisa memutar/zoom maket dari titik itu. Tanpa klip
+   (belum dibuat/gagal/basi) kamera live terbang antar titik — tur tetap berjalan.
+
+Konfigurasi (server-only, di `.env`): `ARK_API_KEY` (wajib), `ARK_BASE_URL`, `SEEDANCE_MODEL`,
+`SEEDANCE_RESOLUTION`, `SEEDANCE_DURASI_DTK` — lihat `.env.example`. `npm run smoke` memeriksa key tanpa
+membuat video. Model 2.0/2.5 membutuhkan saldo kredit BytePlus ≥ $30 agar aktif.
+
+Biaya per klip (dokumen BytePlus, perkiraan): default `dreamina-seedance-2-0-260128` 5 dtk @720p ≈ **$0,76**;
+tur 6 titik (5 ruas) ≈ $3,80. Untuk menyetel prompt murah pakai `dreamina-seedance-2-0-mini-260615` @480p (≈ $0,18).
+Editor menampilkan estimasi dan meminta konfirmasi sebelum membuat klip. Batas: maks 8 titik per tur,
+30 klip per proyek, 2 klip dibuat paralel, 3 permintaan "Buat klip" per 10 menit per pengguna.
+
+Klip ditandai **basi** (dan ditawarkan dibuat ulang) bila pose titik, versi maket, atau versi palet berubah.
+`arkTaskId` disimpan segera setelah task dibuat; bila server restart, polling dilanjutkan (`instrumentation.ts`)
+alih-alih membuang kredit yang sudah terpakai. Video BytePlus hanya tersedia 24 jam, jadi diunduh ke
+`storage/models/<projectId>/tur/` begitu selesai.
 
 ## Bentuk atap
 
@@ -97,3 +126,6 @@ hex mentah di komponen. Ikon memakai Lucide (SVG), bukan emoji.
 - Luas boundary maks 4 km² (validasi server); usulan LLM 0.05–4 km², 6–30 vertex.
 - Job berjalan di proses Next (bukan serverless) — deploy target `next start` di VPS.
 - Google Open Buildings, ekspor DXF/OBJ, admin = tahap M5 (belum diimplementasi).
+- Tur hanya eksterior (model tidak punya interior). Video AI bersifat perkiraan: BytePlus tidak menjamin
+  bentuk/warna bangunan identik, sehingga klip dijangkar dua frame render dan dipantau di editor sebelum dipublikasikan.
+- Seedance diuji terhadap server tiruan (`npm run cek:tur` + uji manual), belum dengan key BytePlus sungguhan.

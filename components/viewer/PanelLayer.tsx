@@ -1,6 +1,6 @@
 "use client";
 
-import { Layers, Map as MapIcon } from "lucide-react";
+import { Layers, Map as MapIcon, Palette } from "lucide-react";
 import type { LayerMeta, ModeBasemap } from "./types";
 
 const MODE_BASEMAP: { id: ModeBasemap; label: string }[] = [
@@ -23,6 +23,8 @@ export default function PanelLayer({
   basemap = "off",
   onBasemap,
   basemapTersedia = false,
+  modeWarna,
+  onModeWarna,
 }: {
   layersMeta: LayerMeta[];
   aktif: string[];
@@ -30,6 +32,9 @@ export default function PanelLayer({
   basemap?: ModeBasemap;
   onBasemap?: (m: ModeBasemap) => void;
   basemapTersedia?: boolean;
+  /** Maket berwarna gaya arsitek — dipakai juga oleh frame tur & video Seedance. */
+  modeWarna?: boolean;
+  onModeWarna?: (v: boolean) => void;
 }) {
   return (
     <div className="absolute right-3 top-3 z-10 rounded-lg border border-line bg-surface/95 p-3.5 shadow-sm">
@@ -62,6 +67,23 @@ export default function PanelLayer({
           );
         })}
       </div>
+      {onModeWarna && (
+        <>
+          <p className="mb-2 mt-3 flex items-center gap-1.5 border-t border-line pt-3 font-mono text-xs font-semibold uppercase tracking-wide text-primary">
+            <Palette size={13} aria-hidden />
+            Tampilan
+          </p>
+          <label className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-1.5 text-sm transition-colors duration-200 hover:bg-background">
+            <input
+              type="checkbox"
+              checked={!!modeWarna}
+              onChange={(e) => onModeWarna(e.target.checked)}
+              className="size-4 accent-primary"
+            />
+            Warna maket
+          </label>
+        </>
+      )}
       {basemapTersedia && onBasemap && (
         <>
           <p className="mb-2 mt-3 flex items-center gap-1.5 border-t border-line pt-3 font-mono text-xs font-semibold uppercase tracking-wide text-primary">

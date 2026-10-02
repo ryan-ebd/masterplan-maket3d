@@ -8,6 +8,7 @@ import BadgeStatus from "@/components/ui/BadgeStatus";
 import { GarisKontur } from "@/components/ui/GarisKontur";
 import { LokasiProyek } from "@/components/ui/LokasiProyek";
 import Viewer3D from "@/components/viewer/Viewer3D";
+import TurKlien from "@/components/tur/TurKlien";
 import type { LayerMeta } from "@/components/viewer/types";
 
 const LANGKAH = [
@@ -99,6 +100,15 @@ export default async function DetailProyekKlien({
             stats={project.model.stats}
             boundary={project.boundary as unknown as Polygon | null}
           />
+          <div className="mt-7">
+            <TurKlien
+              projectId={project.id}
+              version={project.model.updatedAt.toISOString()}
+              layersMeta={project.model.layersMeta as unknown as LayerMeta[]}
+              stats={project.model.stats}
+              boundary={project.boundary as unknown as Polygon | null}
+            />
+          </div>
           {project.boundaryNote && (
             <p className="mt-4 flex items-start gap-2 rounded-md border border-line bg-surface p-4 text-sm leading-relaxed text-muted">
               <Info size={16} className="mt-0.5 shrink-0 text-primary" aria-hidden />

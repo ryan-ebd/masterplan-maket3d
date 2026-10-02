@@ -66,6 +66,8 @@ model Project {
   jobs        ProcessingJob[]
   model       Model3D?
   llmSessions LlmSession[]
+  titikTur    TitikTur[]
+  klipTur     KlipTur[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -89,7 +91,7 @@ model ProcessingJob {
 
   // Kunci idempotensi: diisi projectId selama job aktif (QUEUED/RUNNING), di-null-kan saat selesai.
   // Unique membuat "satu job aktif per proyek" dijamin DATABASE, bukan cek-lalu-buat yang bisa balapan.
-  activeKey String?   @unique
+  activeKey String? @unique
 
   @@index([projectId, createdAt])
   @@index([status])
@@ -113,4 +115,63 @@ model LlmSession {
   messages  Json // riwayat blok content utuh perencana <-> Claude (termasuk tool_use/tool_result)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Titik tur maket: pose kamera + frame diam 1280x720 hasil render viewer sendiri.
+// Frame inilah jangkar fidelitas klip Seedance (first_frame / last_frame).
+model TitikTur {
+  id         String  @id @default(cuid())
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId  String
+  urutan     Int // 0 = "Gambaran umum"
+  nama       String
+  deskripsi  String?
+  featureId  Int? // bangunan terkait (kunci stats.features), opsional
+  pos        Json // [x,y,z] koordinat adegan glTF
+  target     Json // [x,y,z]
+  framePath  String? // relatif STORAGE_DIR: {projectId}/tur/titik-{id}.png
+  // Model3D.updatedAt saat frame diambil: beda dengan versi kini -> frame basi
+  modelVersi String
+
+  klipDari KlipTur[] @relation("KlipDari")
+  klipKe   KlipTur[] @relation("KlipKe")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, urutan])
+}
+
+// Satu klip Seedance untuk ruas dari -> ke. Bukan ProcessingJob: activeKey di sana unik
+// per PROYEK, sementara di sini satu job aktif per RUAS.
+model KlipTur {
+  id        String    @id @default(cuid())
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  dari      TitikTur  @relation("KlipDari", fields: [dariId], references: [id], onDelete: Cascade)
+  dariId    String
+  ke        TitikTur  @relation("KlipKe", fields: [keId], references: [id], onDelete: Cascade)
+  keId      String
+  status    JobStatus @default(QUEUED)
+
+  arkTaskId  String? // disimpan segera setelah task dibuat -> bisa dilanjutkan setelah restart
+  model      String
+  resolution String
+  durasiDtk  Int
+  prompt     String  @db.Text
+  videoPath  String? // relatif STORAGE_DIR: {projectId}/tur/klip-{id}.mp4
+  // sha1(pose kedua titik + modelVersi + PALET_VERSI + model/resolusi/durasi); beda dgn hash kini -> basi
+  hashPose   String
+  error      String?
+
+  createdAt DateTime  @default(now())
+  startedAt DateTime?
+  endedAt   DateTime?
+
+  // "dari:ke" selama QUEUED/RUNNING, null saat selesai: satu job aktif per ruas (atomik)
+  activeKey String? @unique
+
+  @@index([projectId, createdAt])
+  @@index([dariId, keId])
+  @@index([status])
 }

@@ -3,8 +3,12 @@
 import { Component, Suspense, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import ModelMaket from "./ModelMaket";
+import ModelMaket, { type FiturZona } from "./ModelMaket";
 import BasemapPlane from "./BasemapPlane";
+import KameraBridge, { type KameraApiRef } from "./KameraBridge";
+import { LATAR_TUR_HEX } from "@/lib/render/paletMaket";
+import { FOV_TUR } from "@/lib/tur/saran";
+import type { Pose } from "@/lib/tur/types";
 
 /**
  * useGLTF melempar saat GLB gagal diambil/di-parse. Tanpa boundary ini, satu berkas
@@ -36,6 +40,12 @@ export default function AdeganMaket({
   basemapTinggi,
   onBasemapLoaded,
   onBasemapError,
+  modeWarna = false,
+  fitur,
+  kameraApiRef,
+  latarSolid = false,
+  poseAwal,
+  jarakMaks = 1500,
 }: {
   url: string;
   layerAktif: string[];
@@ -45,13 +55,34 @@ export default function AdeganMaket({
   basemapTinggi?: number;
   onBasemapLoaded?: () => void;
   onBasemapError?: (pesan: string) => void;
+  /** Maket berwarna gaya arsitek (palet bersama dgn prompt Seedance). */
+  modeWarna?: boolean;
+  /** stats.features — sumber zoneType untuk warna atap. */
+  fitur?: FiturZona;
+  /** Diisi KameraBridge: ambil/atur pose, terbang, capture frame. Lewat prop biasa karena komponen ini dimuat via next/dynamic. */
+  kameraApiRef?: KameraApiRef;
+  /** Latar solid (bukan gradien CSS) — WAJIB agar tur live identik dengan frame yang di-capture. */
+  latarSolid?: boolean;
+  poseAwal?: Pose;
+  /** Naikkan untuk kawasan besar; OrbitControls menjepit kamera ke jarak ini. */
+  jarakMaks?: number;
 }) {
   return (
     <Canvas
       shadows
-      camera={{ position: [140, 140, 140], fov: 40, near: 0.5, far: 8000 }}
-      style={{ background: "linear-gradient(160deg, #f7f6f1 0%, #f2f0e8 55%, #ebe8dd 100%)" }}
+      camera={{
+        position: poseAwal?.pos ?? [140, 140, 140],
+        fov: FOV_TUR,
+        near: 0.5,
+        far: Math.max(8000, jarakMaks * 4),
+      }}
+      style={{
+        background: latarSolid
+          ? LATAR_TUR_HEX
+          : "linear-gradient(160deg, #f7f6f1 0%, #f2f0e8 55%, #ebe8dd 100%)",
+      }}
     >
+      {latarSolid && <color attach="background" args={[LATAR_TUR_HEX]} />}
       <hemisphereLight args={["#ffffff", "#d9d2c5", 0.6]} />
       <directionalLight
         position={[80, 140, 60]}
@@ -81,7 +112,13 @@ export default function AdeganMaket({
       {/* useGLTF suspending — tanpa Suspense seluruh pohon kanvas menggantung tanpa error */}
       <ModelErrorBoundary>
         <Suspense fallback={null}>
-          <ModelMaket url={url} layerAktif={layerAktif} onPick={onPick} />
+          <ModelMaket
+            url={url}
+            layerAktif={layerAktif}
+            onPick={onPick}
+            modeWarna={modeWarna}
+            fitur={fitur}
+          />
         </Suspense>
       </ModelErrorBoundary>
       <OrbitControls
@@ -89,8 +126,10 @@ export default function AdeganMaket({
         enableDamping
         maxPolarAngle={Math.PI / 2 - 0.05}
         minDistance={20}
-        maxDistance={1500}
+        maxDistance={jarakMaks}
+        target={poseAwal?.target}
       />
+      {kameraApiRef && <KameraBridge apiRef={kameraApiRef} />}
     </Canvas>
   );
 }

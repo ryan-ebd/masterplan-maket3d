@@ -23,4 +23,16 @@ export async function register() {
     // DB belum hidup saat build/boot — jangan gagalkan server
     console.warn("[instrumentation] lewati recovery job:", (e as Error).message);
   }
+
+  // Klip tur Seedance: BERBEDA dari job pipeline — task sudah hidup di BytePlus (dan sudah
+  // ditagih) begitu arkTaskId tersimpan, jadi dilanjutkan, bukan dibuang.
+  try {
+    const { pulihkanKlipSaatBoot } = await import("@/lib/tur/runner");
+    const { lanjut, gagal } = await pulihkanKlipSaatBoot();
+    if (lanjut + gagal > 0) {
+      console.log(`[instrumentation] klip tur: ${lanjut} dilanjutkan, ${gagal} ditandai ERROR`);
+    }
+  } catch (e) {
+    console.warn("[instrumentation] lewati pemulihan klip tur:", (e as Error).message);
+  }
 }
