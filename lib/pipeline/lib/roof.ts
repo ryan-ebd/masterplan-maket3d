@@ -7,6 +7,7 @@
  * skillion (sengkuap/miring satu arah). Empat terakhir mendominasi lanskap Indonesia.
  */
 import earcut, { flatten } from "earcut";
+import * as turf from "@turf/turf";
 import { sanitizeRingsPublik, type MeshBuilder } from "./extrude";
 import type { MeterRing } from "../types";
 
@@ -112,6 +113,21 @@ export function sudutSumbuPanjang(ring: MeterRing): { theta: number; panjang: nu
   return { theta: terbaik.theta, panjang: terbaik.panjang, lebar: terbaik.lebar };
 }
 
+function luasRing(ring: MeterRing): number {
+  return Math.abs(signedArea(ring));
+}
+
+/**
+ * Inset/kerucut dari centroid (limasan, limas) hanya valid bila footprint hampir cembung:
+ * pada bentuk L/U segitiga jatuh di luar footprint dan normalnya terbalik (tampak hitam).
+ * Toleransi 5% agar derau OSM (lekukan kecil) tidak menurunkan atap yang masih wajar.
+ */
+function hampirCembung(ring: MeterRing): boolean {
+  const hull = convexHull(ring);
+  const luasHull = luasRing(hull);
+  return luasHull < 1e-9 || luasRing(ring) / luasHull >= 0.95;
+}
+
 /** Ring di-inset ke arah centroid (pendekatan praktis untuk limasan/limas). */
 function insetRing(ring: MeterRing, rasio: number): MeterRing {
   const [cx, cy] = centroid(ring);
@@ -175,6 +191,44 @@ function tambahTri(
   );
 }
 
+/**
+ * Potong footprint di garis punggungan (garis lurus pada jarak `pTengah` dari origin
+ * sepanjang normal (nx,ny)) menjadi polygon-polygon di sisi + dan -.
+ *
+ * Wajib untuk atap pelana: tinggi atap adalah fungsi |jarak ke punggungan| yang tidak
+ * mulus di punggungan. Triangulasi satu poligon cekung bisa membuat segitiga yang
+ * menghubungkan titik di KEDUA sisi; tinggi diinterpolasi lurus di dalamnya sehingga
+ * punggungan lenyap dan atap tampak seperti kipas. Dengan memotong dulu, setiap bagian
+ * hanya punya satu sisi sehingga tinggi di dalamnya benar-benar linear.
+ */
+function bagiDiPunggungan(luar: MeterRing, nx: number, ny: number, pTengah: number): MeterRing[] {
+  const dx = -ny; // arah punggungan (tegak lurus normal)
+  const dy = nx;
+  const ox = nx * pTengah; // titik pada garis punggungan
+  const oy = ny * pTengah;
+  let jari = 1;
+  for (const [x, y] of luar) jari = Math.max(jari, Math.hypot(x - ox, y - oy));
+  const R = jari * 4 + 10;
+  const footprint = turf.polygon([[...luar, luar[0]]]);
+  const hasil: MeterRing[] = [];
+  for (const sisi of [1, -1]) {
+    const k = (a: number, b: number): [number, number] => [
+      ox + dx * a + nx * sisi * b,
+      oy + dy * a + ny * sisi * b,
+    ];
+    const kotak = turf.polygon([[k(-R, 0), k(R, 0), k(R, R), k(-R, R), k(-R, 0)]]);
+    const potong = turf.intersect(turf.featureCollection([footprint, kotak]));
+    if (!potong) continue;
+    const polys =
+      potong.geometry.type === "Polygon" ? [potong.geometry.coordinates] : potong.geometry.coordinates;
+    for (const poly of polys) {
+      const ring = poly[0].slice(0, -1) as MeterRing; // buang titik penutup
+      if (ring.length >= 3) hasil.push(ring);
+    }
+  }
+  return hasil;
+}
+
 /** Tutup datar pada ketinggian z (dipakai flat & puncak limasan terpotong). */
 function tutupDatar(b: MeshBuilder, rings: MeterRing[], z: number, fid?: number) {
   const { vertices, holes, dimensions } = flatten(rings.map((r) => r.map(([x, y]) => [x, y])));
@@ -208,9 +262,11 @@ export function bangunAtap(
   const luar = rings[0];
   if (!luar || luar.length < 3) return;
 
-  // Footprint rumit (L/U/salib) → inset limasan tidak andal; pelana MABR tetap masuk akal.
+  // Footprint rumit atau cekung (L/U/salib) → inset limasan tidak andal; pelana MABR yang
+  // dipotong di punggungan tetap benar untuk bentuk cekung.
   const bentuk: BentukAtap =
-    (bentukDiminta === "hipped" || bentukDiminta === "pyramidal") && luar.length > MAKS_VERTEX_INSET
+    (bentukDiminta === "hipped" || bentukDiminta === "pyramidal") &&
+    (luar.length > MAKS_VERTEX_INSET || !hampirCembung(luar))
       ? "gabled"
       : bentukDiminta;
 
@@ -305,7 +361,8 @@ export function bangunAtap(
   const zDi = (x: number, y: number) =>
     puncakZ - tinggiAtap * Math.min(1, Math.abs(x * nx + y * ny - pTengah) / setengahLebar);
 
-  // Sisipkan titik pada garis punggungan agar puncaknya tajam (bukan tenda melengkung)
+  // Sisipkan titik pada garis punggungan: dipakai untuk DINDING gable di tepi footprint
+  // (titik tempat tepi memotong punggungan).
   const diperkaya: MeterRing = [];
   for (let i = 0; i < luar.length; i++) {
     const a = luar[i];
@@ -320,15 +377,23 @@ export function bangunAtap(
     }
   }
 
-  const { vertices, holes, dimensions } = flatten([diperkaya.map(([x, y]) => [x, y])]);
-  const tri = earcut(vertices, holes, dimensions);
-  for (let i = 0; i < tri.length; i += 3) {
-    const t = [tri[i], tri[i + 1], tri[i + 2]].map((k) => {
-      const x = vertices[k * 2];
-      const y = vertices[k * 2 + 1];
-      return [x, y, zDi(x, y)] as [number, number, number];
-    });
-    tambahTri(b, t[0], t[1], t[2], fid);
+  // Bidang atap: potong di punggungan, triangulasi tiap sisi terpisah (lihat bagiDiPunggungan)
+  let bagian = bagiDiPunggungan(luar, nx, ny, pTengah);
+  if (bagian.length === 0) bagian = [diperkaya]; // pemotongan gagal -> perilaku lama
+  for (const ring of bagian) {
+    const { vertices, holes, dimensions } = flatten([ring.map(([x, y]) => [x, y])]);
+    const tri = earcut(vertices, holes, dimensions);
+    for (let i = 0; i < tri.length; i += 3) {
+      const t = [tri[i], tri[i + 1], tri[i + 2]].map((k) => {
+        const x = vertices[k * 2];
+        const y = vertices[k * 2 + 1];
+        return [x, y, zDi(x, y)] as [number, number, number];
+      });
+      // Bidang atap harus menghadap ke atas: urutan vertex hasil pemotongan bisa CW
+      const silang = (t[1][0] - t[0][0]) * (t[2][1] - t[0][1]) - (t[1][1] - t[0][1]) * (t[2][0] - t[0][0]);
+      if (silang < 0) [t[1], t[2]] = [t[2], t[1]];
+      tambahTri(b, t[0], t[1], t[2], fid);
+    }
   }
   // dinding gable (segitiga di ujung punggungan) agar atap tidak "menggantung"
   for (let i = 0; i < diperkaya.length; i++) {

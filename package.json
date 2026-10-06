@@ -15,6 +15,7 @@
     "fixture": "tsx scripts/make-fixture-glb.ts",
     "fixture:atap": "tsx scripts/fixture-atap.ts",
     "cek:atap": "tsx scripts/cek-fixture-atap.ts",
+    "cek:atap-pelana": "tsx --tsconfig tsconfig.scripts.json scripts/cek-atap-pelana.ts",
     "cek:tur": "tsx --tsconfig tsconfig.scripts.json scripts/cek-tur.ts",
     "uji:atap-llm": "tsx --tsconfig tsconfig.scripts.json scripts/uji-prompt-atap.ts"
   },
